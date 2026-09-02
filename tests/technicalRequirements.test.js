@@ -134,6 +134,16 @@ test("technical requirements preserve versions, origin, and human decisions", as
         assert.equal(approved.status, "approved");
         assert.equal(approved.approvedVersion, 2);
         assert.equal(approved.decision.actor.name, "Reviewer");
+        assert.deepEqual(approved.timeline.map(function (event) {
+            return event.eventType;
+        }), [
+            "technical_requirement_created",
+            "technical_requirement_revised",
+            "technical_requirement_review_submitted",
+            "technical_requirement_decided"
+        ]);
+        assert.equal(approved.timeline[2].actor.name, "Reviewer");
+        assert.equal(Number.isNaN(Date.parse(approved.timeline[2].occurredAt)), false);
 
         await assert.rejects(reviseTechnicalRequirement({
             actorName: "Author",
@@ -148,6 +158,55 @@ test("technical requirements preserve versions, origin, and human decisions", as
             note: "Duplicate decision.",
             requirementId: created.id
         }), assertCode("INVALID_TECHNICAL_TRANSITION"));
+    });
+});
+
+test("a rejected technical requirement can return to draft through a new version", async function () {
+    await withEventStore(async function () {
+        const functionalRequirement = await createApprovedFunctionalRequirement();
+        const created = await createTechnicalRequirement({
+            actorName: "Author",
+            functionalRequirementId: functionalRequirement.id,
+            statement: "The first technical derivation needs clarification.",
+            title: "Clarify derivation"
+        });
+
+        await submitTechnicalRequirementReview({actorName: "Reviewer", requirementId: created.id});
+        const rejected = await decideTechnicalRequirement({
+            actorName: "Reviewer",
+            decision: "rejected",
+            note: "The implementation boundary is incomplete.",
+            requirementId: created.id
+        });
+        assert.equal(rejected.status, "rejected");
+
+        const revised = await reviseTechnicalRequirement({
+            actorName: "Author",
+            note: "Added the implementation boundary.",
+            requirementId: created.id,
+            statement: "The technical derivation defines the implementation boundary.",
+            title: "Define derivation boundary"
+        });
+        assert.equal(revised.status, "draft");
+        assert.equal(revised.currentVersion, 2);
+        assert.equal(revised.functionalRequirementId, functionalRequirement.id);
+        assert.equal(revised.functionalRequirementVersion, functionalRequirement.approvedVersion);
+    });
+});
+
+test("an inconsistent technical event history is rejected", async function () {
+    await withEventStore(async function (storePath) {
+        fs.writeFileSync(storePath, `${JSON.stringify({
+            actor: {kind: "human", name: "Carlo"},
+            eventId: "00000000-0000-4000-8000-000000000001",
+            eventType: "technical_requirement_decided",
+            occurredAt: "2026-09-03T00:00:00.000Z",
+            payload: {decision: "approved", note: "Invalid history.", version: 1},
+            requirementId: "00000000-0000-4000-8000-000000000002",
+            schemaVersion: 1
+        })}\n`, "utf8");
+
+        await assert.rejects(listTechnicalRequirements(), assertCode("STORE_CORRUPTED"));
     });
 });
 
@@ -175,4 +234,3 @@ test("a technical requirement requires an approved functional origin", async fun
         }), assertCode("FUNCTIONAL_REQUIREMENT_NOT_FOUND"));
     });
 });
-
