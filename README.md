@@ -42,6 +42,12 @@ An approved functional requirement can originate multiple technical requirements
 
 Technical requirements use the same versioned human-review lifecycle. The UI supports navigation from functional intent to its technical derivations and back to the exact approved origin.
 
+## Task drafts
+
+An approved technical requirement can originate multiple versioned task drafts. Each task contains a title, objective, and acceptance criteria while preserving the immutable technical requirement ID and approved version.
+
+The UI exposes the complete navigation chain from functional intent to technical derivation to task draft. Task readiness, execution, checks, results, and completion remain later milestones.
+
 ## Codex review proposals
 
 For a draft requirement, the UI can send its current title, origin, and statement to Codex after explicit confirmation. Codex returns a structured proposal with a summary, missing information, ambiguities, and a suggested revision.
@@ -74,4 +80,4 @@ The real Codex smoke test is optional and is never run by the regular test suite
 
 ## Current limits
 
-Identity is declared through a display name and is not authenticated. There is no task lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
+Identity is declared through a display name and is not authenticated. There is no task execution lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
