@@ -43,6 +43,7 @@ module.exports = function getOpenApiConfig() {
             tags: [
                 {description: "Runtime readiness.", name: "System"},
                 {description: "Versioned functional requirement governance.", name: "Functional requirements"},
+                {description: "Versioned technical requirements derived from approved functional origins.", name: "Technical requirements"},
                 {description: "Optional, explicitly confirmed Codex operations.", name: "Codex"}
             ]
         },
