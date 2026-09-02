@@ -12,6 +12,10 @@ body {
     place-items: center;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 main {
     width: min(42rem, calc(100% - 2rem));
     padding: 2rem;
@@ -44,6 +48,12 @@ section {
     background: #ffffff;
 }
 
+article {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #dbe3dd;
+}
+
 h2 {
     margin: 0 0 0.5rem;
     font-size: 1rem;
@@ -63,9 +73,78 @@ button:disabled {
     opacity: 0.5;
 }
 
+.secondary {
+    color: #713830;
+    background: #f3dfdc;
+}
+
+form,
+article {
+    display: grid;
+    gap: 0.65rem;
+}
+
+input,
+textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.65rem;
+    border: 1px solid #b8c5bc;
+    border-radius: 0.4rem;
+    color: inherit;
+    background: #ffffff;
+    font: inherit;
+}
+
+textarea {
+    resize: vertical;
+}
+
+label {
+    margin-top: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
+.hint,
+.message {
+    color: #526057;
+    font-size: 0.85rem;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.detail-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.detail-heading h3 {
+    margin: 0.25rem 0 0;
+}
+
+.requirement-list {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0;
+    list-style: none;
+}
+
+.requirement-link {
+    width: 100%;
+    color: #24563d;
+    background: #edf4ef;
+    text-align: left;
+}
+
 pre {
     min-height: 1.25rem;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
 }
-
