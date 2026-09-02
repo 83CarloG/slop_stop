@@ -166,6 +166,35 @@ label {
     text-align: left;
 }
 
+.process-trace {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.6rem;
+    background: #f4f7f5;
+}
+
+.process-trace h4 {
+    margin: 0 0 0.75rem;
+}
+
+.trace-chain {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+}
+
+.trace-chain .requirement-link {
+    width: auto;
+    min-width: max-content;
+}
+
+.trace-chain > span:last-child {
+    min-width: max-content;
+    font-size: 0.85rem;
+    font-weight: 650;
+}
+
 pre {
     min-height: 1.25rem;
     overflow-wrap: anywhere;

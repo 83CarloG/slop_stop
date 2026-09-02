@@ -46,7 +46,9 @@ Technical requirements use the same versioned human-review lifecycle. The UI sup
 
 An approved technical requirement can originate multiple versioned task drafts. Each task contains a title, objective, and acceptance criteria while preserving the immutable technical requirement ID and approved version.
 
-The UI exposes the complete navigation chain from functional intent to technical derivation to task draft. Task readiness, execution, checks, results, and completion remain later milestones.
+Each task exposes a read-only process trace with the exact functional and technical origins plus one normalized chronological timeline. Raw event payloads and Codex internals are not exposed.
+
+Task readiness, execution, checks, results, and completion remain later milestones.
 
 ## Codex review proposals
 

@@ -9,6 +9,7 @@ const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
 const derivedTaskList = document.querySelector("#derived-task-list");
 const derivedTechnicalList = document.querySelector("#derived-technical-list");
+const processTraceTimeline = document.querySelector("#process-trace-timeline");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
 const requirementDetail = document.querySelector("#requirement-detail");
@@ -65,9 +66,11 @@ const taskRevisionCriteriaInput = document.querySelector("#task-revision-criteri
 const taskRevisionNoteInput = document.querySelector("#task-revision-note");
 const taskRevisionObjectiveInput = document.querySelector("#task-revision-objective");
 const taskRevisionTitleInput = document.querySelector("#task-revision-title");
-const taskTimeline = document.querySelector("#task-timeline");
 const taskTitleInput = document.querySelector("#task-title");
 const taskVersions = document.querySelector("#task-versions");
+const traceFunctionalLink = document.querySelector("#trace-functional-link");
+const traceTaskCurrent = document.querySelector("#trace-task-current");
+const traceTechnicalLink = document.querySelector("#trace-technical-link");
 
 let selectedRequirementId = null;
 let selectedRequirement = null;
@@ -75,6 +78,7 @@ let selectedTechnicalRequirementId = null;
 let selectedTechnicalRequirement = null;
 let selectedTaskId = null;
 let selectedTask = null;
+let selectedTaskTrace = null;
 let functionalRequirements = [];
 let technicalRequirements = [];
 let codexReady = false;
@@ -143,7 +147,7 @@ function createTimelineText(event) {
         ai_review_proposed: "Codex review proposed"
     };
     const note = event.note ? ` — ${event.note}` : "";
-    return `${labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${note}`;
+    return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${note}`;
 }
 
 function renderRequirement(requirement) {
@@ -360,19 +364,30 @@ function renderTask(task) {
         item.textContent = `Version ${version.version}: ${version.title} — ${version.actor.name} at ${version.createdAt}${note}`;
         taskVersions.append(item);
     }
+}
 
-    taskTimeline.replaceChildren();
-    for (const event of task.timeline) {
+function renderTaskTrace(trace) {
+    selectedTaskTrace = trace;
+    traceFunctionalLink.textContent = `Functional: ${trace.chain.functionalRequirement.title} — v${trace.chain.functionalRequirement.version}`;
+    traceTechnicalLink.textContent = `Technical: ${trace.chain.technicalRequirement.title} — v${trace.chain.technicalRequirement.version}`;
+    traceTaskCurrent.textContent = `Task: ${trace.chain.task.title} — v${trace.chain.task.version}`;
+
+    processTraceTimeline.replaceChildren();
+    for (const event of trace.timeline) {
         const item = document.createElement("li");
         item.textContent = createTimelineText(event);
-        taskTimeline.append(item);
+        processTraceTimeline.append(item);
     }
 }
 
 async function loadTask(taskId) {
-    const task = await requestJson(`/api/tasks/${taskId}`);
+    const [task, trace] = await Promise.all([
+        requestJson(`/api/tasks/${taskId}`),
+        requestJson(`/api/tasks/${taskId}/trace`)
+    ]);
     selectedTaskId = task.id;
     renderTask(task);
+    renderTaskTrace(trace);
 }
 
 function renderTaskOriginOptions() {
@@ -908,6 +923,34 @@ taskOriginLink.addEventListener("click", async function () {
 
     try {
         await loadTechnicalRequirement(selectedTask.technicalRequirementId);
+        technicalMessage.textContent = "";
+        technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
+    } catch (error) {
+        technicalMessage.textContent = error.message;
+    }
+});
+
+traceFunctionalLink.addEventListener("click", async function () {
+    if (!selectedTaskTrace) {
+        return;
+    }
+
+    try {
+        await loadRequirement(selectedTaskTrace.chain.functionalRequirement.id);
+        requirementMessage.textContent = "";
+        requirementDetail.scrollIntoView({behavior: "smooth", block: "start"});
+    } catch (error) {
+        requirementMessage.textContent = error.message;
+    }
+});
+
+traceTechnicalLink.addEventListener("click", async function () {
+    if (!selectedTaskTrace) {
+        return;
+    }
+
+    try {
+        await loadTechnicalRequirement(selectedTaskTrace.chain.technicalRequirement.id);
         technicalMessage.textContent = "";
         technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
     } catch (error) {
