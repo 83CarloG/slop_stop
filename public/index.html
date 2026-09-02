@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Slop Stop</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <main>
+        <p class="eyebrow">M0 FOUNDATION</p>
+        <h1>Slop Stop</h1>
+        <p class="intro">A minimal governed AI application scaffold.</p>
+
+        <section aria-labelledby="application-status-title">
+            <h2 id="application-status-title">Application</h2>
+            <p id="application-status">Checking application status...</p>
+        </section>
+
+        <section aria-labelledby="codex-status-title">
+            <h2 id="codex-status-title">Codex provider</h2>
+            <p id="codex-status">Checking Codex status...</p>
+            <button id="codex-smoke" type="button" disabled>Run read-only smoke test</button>
+            <pre id="codex-result" aria-live="polite"></pre>
+        </section>
+    </main>
+    <script src="/app.js"></script>
+</body>
+</html>
+
