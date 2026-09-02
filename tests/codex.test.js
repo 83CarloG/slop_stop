@@ -92,6 +92,59 @@ test("Codex smoke rejects malformed JSONL", async function () {
     });
 });
 
+test("Codex requirement review uses stdin and returns only structured output", async function () {
+    await withCodexEnvironment("fakeCodex.js", 2000, async function () {
+        process.env.OPENAI_API_KEY = "must-not-reach-the-child";
+        const result = await codex({
+            action: "reviewRequirement",
+            requirement: {
+                source: "Business Plan",
+                statement: "User can export evidence.",
+                title: "Export evidence",
+                version: 1
+            }
+        });
+
+        assert.equal(result.provider, "codex");
+        assert.deepEqual(result.review, {
+            ambiguities: ["The export format is not specified."],
+            missingInformation: ["Define the evidence included in the export."],
+            suggestedRevision: {
+                statement: "The user can export requirement evidence as a JSON file.",
+                title: "Export requirement evidence"
+            },
+            summary: "The intent is clear, but the result needs a format and evidence boundary."
+        });
+    });
+});
+
+test("Codex requirement review rejects malformed output and times out", async function () {
+    const requirement = {
+        source: "Business Plan",
+        statement: "User can export evidence.",
+        title: "Export evidence",
+        version: 1
+    };
+
+    await withCodexEnvironment("fakeCodexMalformed.js", 2000, async function () {
+        await assert.rejects(
+            codex({action: "reviewRequirement", requirement}),
+            function (error) {
+                return error.code === "CODEX_PROTOCOL_ERROR";
+            }
+        );
+    });
+
+    await withCodexEnvironment("fakeCodexSlow.js", 50, async function () {
+        await assert.rejects(
+            codex({action: "reviewRequirement", requirement}),
+            function (error) {
+                return error.code === "CODEX_TIMEOUT";
+            }
+        );
+    });
+});
+
 test("Codex smoke times out and can be cancelled", async function () {
     await withCodexEnvironment("fakeCodexSlow.js", 50, async function () {
         await assert.rejects(
@@ -132,4 +185,3 @@ test("Codex rejects an already cancelled signal", async function () {
         );
     });
 });
-
