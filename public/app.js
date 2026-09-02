@@ -2,11 +2,13 @@
 
 const applicationStatus = document.querySelector("#application-status");
 const actorNameInput = document.querySelector("#actor-name");
+const aiReviewList = document.querySelector("#ai-review-list");
 const approveRequirementButton = document.querySelector("#approve-requirement");
 const codexStatus = document.querySelector("#codex-status");
 const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
+const requestAiReviewButton = document.querySelector("#request-ai-review");
 const requirementDetail = document.querySelector("#requirement-detail");
 const requirementDetailSource = document.querySelector("#requirement-detail-source");
 const requirementDetailStatus = document.querySelector("#requirement-detail-status");
@@ -27,6 +29,8 @@ const revisionTitleInput = document.querySelector("#revision-title");
 const submitRequirementButton = document.querySelector("#submit-requirement");
 
 let selectedRequirementId = null;
+let selectedRequirement = null;
+let codexReady = false;
 
 async function readJson(response) {
     const data = await response.json();
@@ -74,7 +78,8 @@ function createTimelineText(event) {
         functional_requirement_created: "Draft created",
         functional_requirement_decided: "Human decision recorded",
         functional_requirement_revised: "Revision created",
-        functional_requirement_review_submitted: "Submitted for review"
+        functional_requirement_review_submitted: "Submitted for review",
+        ai_review_proposed: "Codex review proposed"
     };
     const note = event.note ? ` — ${event.note}` : "";
     return `${labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${note}`;
@@ -85,6 +90,7 @@ function renderRequirement(requirement) {
         return version.version === requirement.currentVersion;
     });
 
+    selectedRequirement = requirement;
     requirementDetail.hidden = false;
     requirementDetailStatus.textContent = requirement.status.toUpperCase();
     requirementDetailTitle.textContent = requirement.title;
@@ -98,6 +104,48 @@ function renderRequirement(requirement) {
     submitRequirementButton.disabled = requirement.status !== "draft";
     approveRequirementButton.disabled = requirement.status !== "in_review";
     rejectRequirementButton.disabled = requirement.status !== "in_review";
+    requestAiReviewButton.disabled = requirement.status !== "draft" || !codexReady;
+
+    aiReviewList.replaceChildren();
+    for (const proposal of requirement.aiReviews) {
+        const container = document.createElement("div");
+        const heading = document.createElement("h5");
+        const summary = document.createElement("p");
+        const missingHeading = document.createElement("strong");
+        const missingList = document.createElement("ul");
+        const ambiguityHeading = document.createElement("strong");
+        const ambiguityList = document.createElement("ul");
+        const suggestion = document.createElement("p");
+        const useButton = document.createElement("button");
+
+        container.className = "ai-review";
+        heading.textContent = `Version ${proposal.version} review by ${proposal.actor.name}`;
+        summary.textContent = proposal.review.summary;
+        missingHeading.textContent = "Missing information";
+        for (const item of proposal.review.missingInformation) {
+            const listItem = document.createElement("li");
+            listItem.textContent = item;
+            missingList.append(listItem);
+        }
+        ambiguityHeading.textContent = "Ambiguities";
+        for (const item of proposal.review.ambiguities) {
+            const listItem = document.createElement("li");
+            listItem.textContent = item;
+            ambiguityList.append(listItem);
+        }
+        suggestion.textContent = `Suggested revision: ${proposal.review.suggestedRevision.title} — ${proposal.review.suggestedRevision.statement}`;
+        useButton.type = "button";
+        useButton.textContent = "Use suggestion in revision fields";
+        useButton.disabled = requirement.status !== "draft" || proposal.version !== requirement.currentVersion;
+        useButton.addEventListener("click", function () {
+            revisionTitleInput.value = proposal.review.suggestedRevision.title;
+            revisionStatementInput.value = proposal.review.suggestedRevision.statement;
+            revisionNoteInput.focus();
+        });
+
+        container.append(heading, summary, missingHeading, missingList, ambiguityHeading, ambiguityList, suggestion, useButton);
+        aiReviewList.append(container);
+    }
 
     requirementVersions.replaceChildren();
     for (const version of requirement.versions) {
@@ -188,15 +236,23 @@ async function loadStatus() {
         const status = await readJson(codexResponse);
 
         if (status.available && status.authenticated) {
+            codexReady = true;
             codexStatus.textContent = `Ready: ${status.version || "version unavailable"}`;
             codexSmokeButton.disabled = false;
         } else if (status.available) {
+            codexReady = false;
             codexStatus.textContent = "Codex CLI is available but not authenticated.";
         } else {
+            codexReady = false;
             codexStatus.textContent = "Codex CLI is not available.";
         }
     } catch (error) {
+        codexReady = false;
         codexStatus.textContent = "Codex status could not be checked.";
+    }
+
+    if (selectedRequirement) {
+        requestAiReviewButton.disabled = selectedRequirement.status !== "draft" || !codexReady;
     }
 }
 
@@ -305,6 +361,37 @@ rejectRequirementButton.addEventListener("click", async function () {
             note: revisionNoteInput.value
         };
     }, "Reject this requirement version?");
+});
+
+requestAiReviewButton.addEventListener("click", async function () {
+    if (!selectedRequirementId || !selectedRequirement || selectedRequirement.status !== "draft") {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Send the current title, origin, and statement to Codex for a read-only review? Codex will only propose changes."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    requestAiReviewButton.disabled = true;
+    requirementMessage.textContent = "Requesting a Codex proposal...";
+
+    try {
+        const requirement = await requestJson(`/api/functional-requirements/${selectedRequirementId}/ai-reviews`, {
+            body: JSON.stringify({confirmed: true}),
+            headers: {"content-type": "application/json"},
+            method: "POST"
+        });
+        selectedRequirement = requirement;
+        requirementMessage.textContent = "Codex proposal recorded. No requirement content or status changed.";
+        await loadRequirements();
+    } catch (error) {
+        requirementMessage.textContent = error.message;
+        requestAiReviewButton.disabled = selectedRequirement.status !== "draft" || !codexReady;
+    }
 });
 
 restoreActorName();

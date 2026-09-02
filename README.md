@@ -7,7 +7,7 @@ Minimal Node.js MVP for governing versioned functional requirements with explici
 - Node.js 24
 - npm
 - Git
-- Codex CLI, authenticated with `codex login`, only for the optional smoke test
+- Codex CLI, authenticated with `codex login`, only for optional AI review and smoke requests
 
 ## Quick start
 
@@ -26,6 +26,14 @@ The web UI supports draft creation, immutable revisions, review submission, and 
 
 The M1 store is designed for one local application process. If a JSONL record is malformed, reads and writes stop with `STORE_CORRUPTED`; repair is deliberately manual.
 
+## Codex review proposals
+
+For a draft requirement, the UI can send its current title, origin, and statement to Codex after explicit confirmation. Codex returns a structured proposal with a summary, missing information, ambiguities, and a suggested revision.
+
+The proposal is recorded as AI evidence but cannot change state, revise content, or approve the requirement. A human may copy the suggestion into the revision fields and must then create the revision separately.
+
+Codex runs through [non-interactive mode](https://developers.openai.com/codex/noninteractive) with an output schema, an ephemeral session, ignored local rules, and a read-only sandbox. Raw prompts, reasoning, and JSONL output are not persisted.
+
 ## Codex smoke test
 
 Check Codex readiness in the web page, then explicitly confirm the read-only smoke test. The same check is available from the command line:
@@ -42,4 +50,4 @@ The real Codex smoke test is optional and is never run by the regular test suite
 
 ## Current limits
 
-Identity is declared through a display name and is not authenticated. There is no database, deployment configuration, multi-provider abstraction, or automatic code modification. Codex can only run the isolated connectivity smoke test; functional requirement review by Codex is reserved for the next human-approved increment.
+Identity is declared through a display name and is not authenticated. There is no database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
