@@ -153,12 +153,33 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(persistedTask.json().versions.length, 2);
             assert.equal(persistedTechnical.json().functionalRequirementId, functionalRequirementId);
 
+            const trace = await app.inject({method: "GET", url: `/api/tasks/${taskId}/trace`});
+            assert.equal(trace.statusCode, 200);
+            assert.equal(trace.json().chain.functionalRequirement.id, functionalRequirementId);
+            assert.equal(trace.json().chain.technicalRequirement.id, technicalRequirementId);
+            assert.equal(trace.json().chain.task.id, taskId);
+            assert.deepEqual(trace.json().timeline.map(function (event) {
+                return event.eventType;
+            }), [
+                "functional_requirement_created",
+                "functional_requirement_review_submitted",
+                "functional_requirement_decided",
+                "technical_requirement_created",
+                "technical_requirement_review_submitted",
+                "technical_requirement_decided",
+                "task_created",
+                "task_revised"
+            ]);
+
             const missing = await app.inject({method: "GET", url: `/api/tasks/${crypto.randomUUID()}`});
             assert.equal(missing.statusCode, 404);
             assert.equal(missing.json().code, "TASK_NOT_FOUND");
+
+            const missingTrace = await app.inject({method: "GET", url: `/api/tasks/${crypto.randomUUID()}/trace`});
+            assert.equal(missingTrace.statusCode, 404);
+            assert.equal(missingTrace.json().code, "TASK_NOT_FOUND");
         } finally {
             await app.close();
         }
     });
 });
-

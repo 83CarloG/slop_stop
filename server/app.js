@@ -20,6 +20,7 @@ const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "g
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
 const getHealth = require(path.resolve(process.cwd(), "src", "services", "getHealth.js"));
 const getTask = require(path.resolve(process.cwd(), "src", "services", "getTask.js"));
+const getTaskTrace = require(path.resolve(process.cwd(), "src", "services", "getTaskTrace.js"));
 const getTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "getTechnicalRequirement.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
 const listTasks = require(path.resolve(process.cwd(), "src", "services", "listTasks.js"));
@@ -467,6 +468,17 @@ module.exports = function createApp() {
         }
     }, async function (request) {
         return await getTask({taskId: request.params.taskId});
+    });
+
+    app.get("/api/tasks/:taskId/trace", {
+        schema: {
+            operationId: "getTaskTrace",
+            params: taskIdSchema,
+            summary: "Get the normalized process trace for one task",
+            tags: ["Tasks"]
+        }
+    }, async function (request) {
+        return await getTaskTrace({taskId: request.params.taskId});
     });
 
     app.post("/api/tasks/:taskId/revisions", {
