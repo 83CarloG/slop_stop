@@ -17,21 +17,41 @@ if (argumentsList[0] === "--version") {
     });
     process.stdin.on("end", function () {
         const promptLeakedToArguments = argumentsList.some(function (argument) {
-            return argument.includes("readiness response");
+            return argument.includes("readiness response") || argument.includes("functional requirement");
         });
 
-        if (promptLeakedToArguments || !input.includes("readiness response")) {
+        const isRequirementReview = input.includes("Review one functional requirement");
+
+        if (promptLeakedToArguments || (isRequirementReview && process.env.OPENAI_API_KEY)) {
             process.exitCode = 2;
             return;
         }
 
-        const message = process.env.OPENAI_API_KEY ? "Secret leaked." : "Secrets are isolated.";
+        let output;
+
+        if (input.includes("readiness response")) {
+            output = {
+                message: process.env.OPENAI_API_KEY ? "Secret leaked." : "Secrets are isolated.",
+                status: "ready"
+            };
+        } else if (isRequirementReview && input.includes("User can export evidence.")) {
+            output = {
+                ambiguities: ["The export format is not specified."],
+                missingInformation: ["Define the evidence included in the export."],
+                suggestedRevision: {
+                    statement: "The user can export requirement evidence as a JSON file.",
+                    title: "Export requirement evidence"
+                },
+                summary: "The intent is clear, but the result needs a format and evidence boundary."
+            };
+        } else {
+            process.exitCode = 2;
+            return;
+        }
+
         const event = JSON.stringify({
             item: {
-                text: JSON.stringify({
-                    message,
-                    status: "ready"
-                }),
+                text: JSON.stringify(output),
                 type: "agent_message"
             },
             type: "item.completed"
@@ -49,4 +69,3 @@ if (argumentsList[0] === "--version") {
 } else {
     process.exitCode = 2;
 }
-

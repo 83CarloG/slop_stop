@@ -8,15 +8,15 @@
 </head>
 <body>
     <main>
-        <p class="eyebrow">M1 REQUIREMENTS</p>
+        <p class="eyebrow">M2 TRACEABILITY</p>
         <h1>Slop Stop</h1>
-        <p class="intro">A minimal governed workflow for versioned functional requirements.</p>
+        <p class="intro">A governed link between functional intent and technical requirements.</p>
 
         <section aria-labelledby="actor-title">
             <h2 id="actor-title">Human actor</h2>
             <label for="actor-name">Display name</label>
             <input id="actor-name" maxlength="80" autocomplete="name" placeholder="Enter your name">
-            <p class="hint">This asserted identity is recorded in requirement events. Authentication is not part of M1.</p>
+            <p class="hint">This asserted identity is recorded in requirement events. Authentication is not part of the current MVP.</p>
         </section>
 
         <section aria-labelledby="requirements-title">
@@ -65,6 +65,16 @@
                     <button id="reject-requirement" type="button" class="secondary">Reject</button>
                 </div>
 
+                <div class="ai-review-panel">
+                    <h4>Codex proposals</h4>
+                    <p class="hint">A confirmed request sends the current title, origin, and statement to Codex. The result cannot change or approve the requirement.</p>
+                    <button id="request-ai-review" type="button">Request Codex review</button>
+                    <div id="ai-review-list"></div>
+                </div>
+
+                <h4>Derived technical requirements</h4>
+                <ul id="derived-technical-list" class="requirement-list"></ul>
+
                 <h4>Versions</h4>
                 <ol id="requirement-versions"></ol>
 
@@ -73,9 +83,67 @@
             </article>
         </section>
 
+        <section id="technical-requirements" aria-labelledby="technical-requirements-title">
+            <h2 id="technical-requirements-title">Technical requirements</h2>
+            <p class="hint">Each technical requirement derives from one immutable approved functional version.</p>
+
+            <form id="technical-requirement-form">
+                <label for="technical-origin">Approved functional origin</label>
+                <select id="technical-origin" required>
+                    <option value="">Select an approved functional requirement</option>
+                </select>
+
+                <label for="technical-title">Title</label>
+                <input id="technical-title" maxlength="120" required>
+
+                <label for="technical-statement">Technical requirement statement</label>
+                <textarea id="technical-statement" maxlength="4000" rows="5" required></textarea>
+
+                <button type="submit">Create technical draft</button>
+            </form>
+
+            <p id="technical-message" class="message" aria-live="polite"></p>
+            <ul id="technical-list" class="requirement-list"></ul>
+
+            <article id="technical-detail" hidden>
+                <div class="detail-heading">
+                    <div>
+                        <p id="technical-detail-status" class="eyebrow"></p>
+                        <h3 id="technical-detail-title"></h3>
+                    </div>
+                    <span id="technical-detail-version"></span>
+                </div>
+
+                <button id="technical-origin-link" type="button" class="requirement-link"></button>
+
+                <label for="technical-revision-title">Current title</label>
+                <input id="technical-revision-title" maxlength="120">
+
+                <label for="technical-revision-statement">Current statement</label>
+                <textarea id="technical-revision-statement" maxlength="4000" rows="5"></textarea>
+
+                <label for="technical-revision-note">Revision or decision note</label>
+                <input id="technical-revision-note" maxlength="500">
+
+                <div class="actions">
+                    <button id="revise-technical-requirement" type="button">Create revision</button>
+                    <button id="submit-technical-requirement" type="button">Submit for review</button>
+                    <button id="approve-technical-requirement" type="button">Approve</button>
+                    <button id="reject-technical-requirement" type="button" class="secondary">Reject</button>
+                </div>
+
+                <h4>Versions</h4>
+                <ol id="technical-versions"></ol>
+
+                <h4>Timeline</h4>
+                <ol id="technical-timeline"></ol>
+            </article>
+        </section>
+
         <section aria-labelledby="application-status-title">
             <h2 id="application-status-title">Application</h2>
             <p id="application-status">Checking application status...</p>
+            <a href="/documentation/">Explore the OpenAPI contract</a>
         </section>
 
         <section aria-labelledby="codex-status-title">
