@@ -1,0 +1,10 @@
+/node_modules/
+/coverage/
+/.env
+/*.log
+
+# Local governance working files
+/docs/
+/SYSTEM.md
+/AGENTS.md
+
