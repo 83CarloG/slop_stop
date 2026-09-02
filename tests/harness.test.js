@@ -14,7 +14,7 @@ test("the local harness is create-only and idempotent", function () {
 
     try {
         const firstResult = setupHarness(targetRoot);
-        assert.equal(firstResult.created.length, 12);
+        assert.equal(firstResult.created.length, 16);
         assert.equal(firstResult.skipped.length, 0);
 
         const systemPath = path.resolve(targetRoot, "SYSTEM.md");
@@ -22,7 +22,7 @@ test("the local harness is create-only and idempotent", function () {
 
         const secondResult = setupHarness(targetRoot);
         assert.equal(secondResult.created.length, 0);
-        assert.equal(secondResult.skipped.length, 12);
+        assert.equal(secondResult.skipped.length, 16);
         assert.equal(fs.readFileSync(systemPath, "utf8"), "human-owned content\n");
     } finally {
         const temporaryRoot = path.resolve(os.tmpdir());
@@ -32,4 +32,3 @@ test("the local harness is create-only and idempotent", function () {
         fs.rmSync(resolvedTarget, {recursive: true, force: true});
     }
 });
-

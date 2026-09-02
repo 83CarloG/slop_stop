@@ -8,6 +8,10 @@ const templateMappings = [
     ["system.template.md", "SYSTEM.md"],
     ["agents.template.md", "AGENTS.md"],
     ["docs/product/product.template.md", "docs/product/PRODUCT.md"],
+    ["docs/product/glossary.template.md", "docs/product/GLOSSARY.md"],
+    ["docs/product/mvpRoadmap.template.md", "docs/product/MVP_ROADMAP.md"],
+    ["docs/product/sourceMap.template.md", "docs/product/SOURCE_MAP.md"],
+    ["docs/product/traceability.template.md", "docs/product/TRACEABILITY.md"],
     ["docs/architecture/architecture.template.md", "docs/architecture/ARCHITECTURE.md"],
     ["docs/governance/workflow.template.md", "docs/governance/WORKFLOW.md"],
     ["docs/decisions/adr0001.template.md", "docs/decisions/ADR-0001-luminous-architecture.md"],
@@ -66,4 +70,3 @@ if (require.main === module) {
     const result = setupHarness();
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
-

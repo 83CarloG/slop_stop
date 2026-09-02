@@ -2,11 +2,15 @@
 
 ## Purpose
 
-This file indexes the local governance context for the Slop Stop M0 scaffold.
+This file indexes the local governance context for Slop Stop.
 
 ## Canonical local documents
 
 - Product: `docs/product/PRODUCT.md`
+- Glossary: `docs/product/GLOSSARY.md`
+- MVP roadmap: `docs/product/MVP_ROADMAP.md`
+- Source map: `docs/product/SOURCE_MAP.md`
+- Product traceability: `docs/product/TRACEABILITY.md`
 - Architecture: `docs/architecture/ARCHITECTURE.md`
 - Workflow: `docs/governance/WORKFLOW.md`
 - Decisions: `docs/decisions/`
@@ -24,4 +28,3 @@ This file indexes the local governance context for the Slop Stop M0 scaffold.
 ## Repository policy
 
 This file and `docs/` are local working context. They are not Git-tracked sources of truth. Versioned templates and executable architecture tests provide the reproducible baseline.
-

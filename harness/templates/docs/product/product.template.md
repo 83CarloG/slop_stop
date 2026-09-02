@@ -1,18 +1,29 @@
 # Product
 
-## Goal
+## Vision
 
-Build a minimal governance application that keeps AI-generated work subordinate to explicit human decisions and independently verifiable evidence.
+Describe the product outcome and the change it should create.
 
-## M0 outcome
+## Problem
 
-The application starts locally, exposes health and Codex readiness, and can run one explicitly confirmed read-only Codex smoke test.
+Describe the problem without prescribing the implementation.
+
+## Position
+
+State what the product is and what it is not.
+
+## Principles
+
+- Add only durable decision principles.
+
+## MVP outcome
+
+Define the smallest independently verifiable product outcome.
+
+## Current boundary
+
+State what the current milestone includes.
 
 ## Out of scope
 
-- Product workflow and persistence
-- User authentication
-- Deployment
-- Automatic code modification
-- Multiple LLM providers
-
+- List capabilities intentionally deferred.
