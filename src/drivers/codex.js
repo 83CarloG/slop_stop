@@ -1,0 +1,402 @@
+"use strict";
+
+const childProcess = require("child_process");
+const path = require("path");
+const process = require("process");
+
+const getApplicationConfig = require(path.resolve(process.cwd(), "config", "application.js"));
+
+const maximumOutputBytes = 256 * 1024;
+const terminationGraceMs = 1000;
+const smokePrompt = [
+    "Return a concise readiness response in English.",
+    "Do not inspect or modify files.",
+    "Set status to ready and message to one short sentence confirming availability."
+].join(" ");
+
+function createCodexError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+}
+
+function createChildEnvironment(codexHome) {
+    const allowedNames = [
+        "APPDATA",
+        "COMSPEC",
+        "ComSpec",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LOCALAPPDATA",
+        "NO_COLOR",
+        "PATH",
+        "PATHEXT",
+        "Path",
+        "SYSTEMROOT",
+        "SystemRoot",
+        "TEMP",
+        "TERM",
+        "TMP",
+        "TMPDIR",
+        "USERPROFILE",
+        "WINDIR"
+    ];
+    const environment = {};
+
+    for (const name of allowedNames) {
+        if (process.env[name] !== undefined) {
+            environment[name] = process.env[name];
+        }
+    }
+
+    if (codexHome) {
+        environment.CODEX_HOME = codexHome;
+    }
+
+    return environment;
+}
+
+function buildLaunch(command, argumentsList) {
+    if (/\.(?:cjs|mjs|js)$/i.test(command)) {
+        return {
+            command: process.execPath,
+            argumentsList: [command, ...argumentsList]
+        };
+    }
+
+    if (process.platform === "win32" && /\.(?:bat|cmd)$/i.test(command)) {
+        return {
+            command: process.env.ComSpec || "cmd.exe",
+            argumentsList: ["/d", "/s", "/c", command, ...argumentsList]
+        };
+    }
+
+    return {
+        command,
+        argumentsList
+    };
+}
+
+function terminateProcessTree(child, force) {
+    if (!child.pid || child.exitCode !== null) {
+        return;
+    }
+
+    if (process.platform === "win32") {
+        const argumentsList = ["/pid", String(child.pid), "/t"];
+
+        if (force) {
+            argumentsList.push("/f");
+        }
+
+        const killer = childProcess.spawn("taskkill", argumentsList, {
+            shell: false,
+            stdio: "ignore",
+            windowsHide: true
+        });
+        killer.unref();
+        return;
+    }
+
+    try {
+        process.kill(-child.pid, force ? "SIGKILL" : "SIGTERM");
+    } catch (error) {
+        if (error.code !== "ESRCH") {
+            throw error;
+        }
+    }
+}
+
+function executeProcess(command, argumentsList, options) {
+    return new Promise(function (resolve, reject) {
+        if (options.signal && options.signal.aborted) {
+            reject(createCodexError("CODEX_CANCELLED", "Codex execution was cancelled."));
+            return;
+        }
+
+        const launch = buildLaunch(command, argumentsList);
+        const startedAt = Date.now();
+        let settled = false;
+        let terminationTimer = null;
+        let timeoutTimer = null;
+        let terminationError = null;
+        let stdout = "";
+        let stderr = "";
+
+        const child = childProcess.spawn(launch.command, launch.argumentsList, {
+            cwd: process.cwd(),
+            detached: process.platform !== "win32",
+            env: options.environment,
+            shell: false,
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true
+        });
+
+        function clearResources() {
+            clearTimeout(timeoutTimer);
+            clearTimeout(terminationTimer);
+
+            if (options.signal) {
+                options.signal.removeEventListener("abort", cancelExecution);
+            }
+        }
+
+        function terminateWith(error) {
+            if (settled || terminationError) {
+                return;
+            }
+
+            terminationError = error;
+            terminateProcessTree(child, false);
+            terminationTimer = setTimeout(function () {
+                terminateProcessTree(child, true);
+            }, terminationGraceMs);
+            terminationTimer.unref();
+        }
+
+        function appendOutput(currentValue, chunk) {
+            const nextValue = currentValue + chunk.toString("utf8");
+
+            if (Buffer.byteLength(nextValue, "utf8") > maximumOutputBytes) {
+                terminateWith(createCodexError("CODEX_OUTPUT_LIMIT", "Codex output exceeded the allowed size."));
+            }
+
+            return nextValue;
+        }
+
+        function cancelExecution() {
+            terminateWith(createCodexError("CODEX_CANCELLED", "Codex execution was cancelled."));
+        }
+
+        child.stdout.on("data", function (chunk) {
+            stdout = appendOutput(stdout, chunk);
+        });
+
+        child.stderr.on("data", function (chunk) {
+            stderr = appendOutput(stderr, chunk);
+        });
+
+        child.once("error", function (error) {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            clearResources();
+
+            if (error.code === "ENOENT") {
+                reject(createCodexError("CODEX_NOT_FOUND", "Codex CLI was not found."));
+                return;
+            }
+
+            reject(createCodexError("CODEX_PROCESS_ERROR", "Codex CLI could not be started."));
+        });
+
+        child.once("close", function (exitCode, signal) {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            clearResources();
+
+            if (terminationError) {
+                reject(terminationError);
+                return;
+            }
+
+            resolve({
+                durationMs: Date.now() - startedAt,
+                exitCode,
+                signal,
+                stderr,
+                stdout
+            });
+        });
+
+        timeoutTimer = setTimeout(function () {
+            terminateWith(createCodexError("CODEX_TIMEOUT", "Codex execution timed out."));
+        }, options.timeoutMs);
+        timeoutTimer.unref();
+
+        if (options.signal) {
+            options.signal.addEventListener("abort", cancelExecution, {once: true});
+        }
+
+        if (options.input === null || options.input === undefined) {
+            child.stdin.end();
+        } else {
+            child.stdin.end(options.input);
+        }
+    });
+}
+
+function parseCodexEvents(stdout) {
+    const lines = stdout.split(/\r?\n/u).filter(function (line) {
+        return line.trim() !== "";
+    });
+    const events = [];
+
+    for (const line of lines) {
+        try {
+            events.push(JSON.parse(line));
+        } catch (error) {
+            throw createCodexError("CODEX_PROTOCOL_ERROR", "Codex returned malformed JSONL output.");
+        }
+    }
+
+    return events;
+}
+
+function extractSmokeResult(events) {
+    let finalMessage = null;
+
+    for (const event of events) {
+        if (event.type === "item.completed" && event.item && event.item.type === "agent_message") {
+            finalMessage = event.item.text;
+        }
+    }
+
+    if (typeof finalMessage !== "string") {
+        throw createCodexError("CODEX_PROTOCOL_ERROR", "Codex did not return a final message.");
+    }
+
+    let parsedMessage;
+
+    try {
+        parsedMessage = JSON.parse(finalMessage);
+    } catch (error) {
+        throw createCodexError("CODEX_PROTOCOL_ERROR", "Codex returned an invalid final response.");
+    }
+
+    const keys = Object.keys(parsedMessage).sort();
+
+    if (
+        keys.length !== 2 ||
+        keys[0] !== "message" ||
+        keys[1] !== "status" ||
+        parsedMessage.status !== "ready" ||
+        typeof parsedMessage.message !== "string" ||
+        parsedMessage.message.length < 1 ||
+        parsedMessage.message.length > 160
+    ) {
+        throw createCodexError("CODEX_PROTOCOL_ERROR", "Codex returned a response outside the expected schema.");
+    }
+
+    return parsedMessage;
+}
+
+async function getStatus(config, signal) {
+    const environment = createChildEnvironment(config.codexHome);
+    let versionResult;
+
+    try {
+        versionResult = await executeProcess(config.codexCommand, ["--version"], {
+            environment,
+            input: null,
+            signal,
+            timeoutMs: Math.min(config.codexTimeoutMs, 5000)
+        });
+    } catch (error) {
+        if (error.code === "CODEX_NOT_FOUND" || error.code === "CODEX_PROCESS_ERROR") {
+            return {
+                authenticated: false,
+                available: false,
+                provider: "codex",
+                version: null
+            };
+        }
+
+        throw error;
+    }
+
+    if (versionResult.exitCode !== 0) {
+        return {
+            authenticated: false,
+            available: false,
+            provider: "codex",
+            version: null
+        };
+    }
+
+    const loginResult = await executeProcess(config.codexCommand, ["login", "status"], {
+        environment,
+        input: null,
+        signal,
+        timeoutMs: Math.min(config.codexTimeoutMs, 5000)
+    });
+
+    return {
+        authenticated: loginResult.exitCode === 0,
+        available: true,
+        provider: "codex",
+        version: versionResult.stdout.trim() || null
+    };
+}
+
+async function runSmoke(config, signal) {
+    const status = await getStatus(config, signal);
+
+    if (!status.available || !status.authenticated) {
+        throw createCodexError("CODEX_NOT_READY", "Codex CLI is not available and authenticated.");
+    }
+
+    const schemaPath = path.resolve(process.cwd(), "config", "codexSmokeOutput.schema.json");
+    const argumentsList = [
+        "exec",
+        "--json",
+        "--ephemeral",
+        "--ignore-user-config",
+        "--ignore-rules",
+        "--color",
+        "never",
+        "--sandbox",
+        "read-only",
+        "--cd",
+        process.cwd(),
+        "--output-schema",
+        schemaPath
+    ];
+
+    if (config.codexModel) {
+        argumentsList.push("--model", config.codexModel);
+    }
+
+    argumentsList.push("-");
+
+    const result = await executeProcess(config.codexCommand, argumentsList, {
+        environment: createChildEnvironment(config.codexHome),
+        input: smokePrompt,
+        signal,
+        timeoutMs: config.codexTimeoutMs
+    });
+
+    if (result.exitCode !== 0) {
+        throw createCodexError("CODEX_NONZERO_EXIT", "Codex smoke test failed.");
+    }
+
+    const smokeResult = extractSmokeResult(parseCodexEvents(result.stdout));
+
+    return {
+        durationMs: result.durationMs,
+        message: smokeResult.message,
+        provider: "codex",
+        status: "ok"
+    };
+}
+
+module.exports = async function codex(input) {
+    const config = getApplicationConfig();
+
+    if (!input || input.action === "status") {
+        return await getStatus(config, input ? input.signal : undefined);
+    }
+
+    if (input.action === "smoke") {
+        return await runSmoke(config, input.signal);
+    }
+
+    throw createCodexError("CODEX_INVALID_ACTION", "Unsupported Codex action.");
+};
+

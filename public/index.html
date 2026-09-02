@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Slop Stop</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <main>
+        <p class="eyebrow">M1 REQUIREMENTS</p>
+        <h1>Slop Stop</h1>
+        <p class="intro">A minimal governed workflow for versioned functional requirements.</p>
+
+        <section aria-labelledby="actor-title">
+            <h2 id="actor-title">Human actor</h2>
+            <label for="actor-name">Display name</label>
+            <input id="actor-name" maxlength="80" autocomplete="name" placeholder="Enter your name">
+            <p class="hint">This asserted identity is recorded in requirement events. Authentication is not part of M1.</p>
+        </section>
+
+        <section aria-labelledby="requirements-title">
+            <h2 id="requirements-title">Functional requirements</h2>
+
+            <form id="requirement-form">
+                <label for="requirement-title">Title</label>
+                <input id="requirement-title" maxlength="120" required>
+
+                <label for="requirement-source">Origin</label>
+                <input id="requirement-source" maxlength="500" placeholder="User request, workshop, or source document" required>
+
+                <label for="requirement-statement">Requirement statement</label>
+                <textarea id="requirement-statement" maxlength="4000" rows="5" required></textarea>
+
+                <button type="submit">Create draft</button>
+            </form>
+
+            <p id="requirement-message" class="message" aria-live="polite"></p>
+            <ul id="requirement-list" class="requirement-list"></ul>
+
+            <article id="requirement-detail" hidden>
+                <div class="detail-heading">
+                    <div>
+                        <p id="requirement-detail-status" class="eyebrow"></p>
+                        <h3 id="requirement-detail-title"></h3>
+                    </div>
+                    <span id="requirement-detail-version"></span>
+                </div>
+
+                <p id="requirement-detail-source" class="hint"></p>
+
+                <label for="revision-title">Current title</label>
+                <input id="revision-title" maxlength="120">
+
+                <label for="revision-statement">Current statement</label>
+                <textarea id="revision-statement" maxlength="4000" rows="5"></textarea>
+
+                <label for="revision-note">Revision or decision note</label>
+                <input id="revision-note" maxlength="500">
+
+                <div class="actions">
+                    <button id="revise-requirement" type="button">Create revision</button>
+                    <button id="submit-requirement" type="button">Submit for review</button>
+                    <button id="approve-requirement" type="button">Approve</button>
+                    <button id="reject-requirement" type="button" class="secondary">Reject</button>
+                </div>
+
+                <h4>Versions</h4>
+                <ol id="requirement-versions"></ol>
+
+                <h4>Timeline</h4>
+                <ol id="requirement-timeline"></ol>
+            </article>
+        </section>
+
+        <section aria-labelledby="application-status-title">
+            <h2 id="application-status-title">Application</h2>
+            <p id="application-status">Checking application status...</p>
+        </section>
+
+        <section aria-labelledby="codex-status-title">
+            <h2 id="codex-status-title">Codex provider</h2>
+            <p id="codex-status">Checking Codex status...</p>
+            <button id="codex-smoke" type="button" disabled>Run read-only smoke test</button>
+            <pre id="codex-result" aria-live="polite"></pre>
+        </section>
+    </main>
+    <script src="/app.js"></script>
+</body>
+</html>
