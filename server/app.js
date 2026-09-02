@@ -12,6 +12,7 @@ const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "g
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
 const getHealth = require(path.resolve(process.cwd(), "src", "services", "getHealth.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
+const proposeFunctionalRequirementAiReview = require(path.resolve(process.cwd(), "src", "services", "proposeFunctionalRequirementAiReview.js"));
 const reviseFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseFunctionalRequirement.js"));
 const runCodexSmoke = require(path.resolve(process.cwd(), "src", "services", "runCodexSmoke.js"));
 const submitFunctionalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitFunctionalRequirementReview.js"));
@@ -169,6 +170,26 @@ module.exports = function createApp() {
         });
     });
 
+    app.post("/api/functional-requirements/:requirementId/ai-reviews", {
+        schema: {
+            body: {
+                additionalProperties: false,
+                properties: {
+                    confirmed: {const: true}
+                },
+                required: ["confirmed"],
+                type: "object"
+            },
+            params: requirementIdSchema
+        }
+    }, async function (request) {
+        return await proposeFunctionalRequirementAiReview({
+            confirmed: request.body.confirmed,
+            requirementId: request.params.requirementId,
+            signal: request.raw.signal
+        });
+    });
+
     app.post("/api/providers/codex/smoke", {
         schema: {
             body: {
@@ -193,7 +214,7 @@ module.exports = function createApp() {
         const safeMessages = {
             CODEX_CANCELLED: "Codex execution was cancelled.",
             CODEX_NOT_READY: "Codex CLI is not available and authenticated.",
-            CODEX_NONZERO_EXIT: "Codex smoke test failed.",
+            CODEX_NONZERO_EXIT: "Codex request failed.",
             CODEX_OUTPUT_LIMIT: "Codex output exceeded the allowed size.",
             CODEX_PROCESS_ERROR: "Codex CLI could not be started.",
             CODEX_PROTOCOL_ERROR: "Codex returned an invalid response.",

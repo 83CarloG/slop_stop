@@ -11,6 +11,7 @@ module.exports = function validateRequirementTransition(input) {
     }
 
     const allowedStates = {
+        aiReview: ["draft"],
         decide: ["in_review"],
         read: ["approved", "draft", "in_review", "rejected"],
         revise: ["draft", "rejected"],
