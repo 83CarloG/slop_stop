@@ -1,5 +1,6 @@
 /node_modules/
 /coverage/
+/.data/
 /.env
 /*.log
 
@@ -7,4 +8,3 @@
 /docs/
 /SYSTEM.md
 /AGENTS.md
-

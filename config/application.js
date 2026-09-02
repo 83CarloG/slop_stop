@@ -30,7 +30,7 @@ module.exports = function getApplicationConfig() {
         codexCommand,
         codexHome: process.env.CODEX_HOME || null,
         codexModel: process.env.CODEX_MODEL || null,
-        codexTimeoutMs: parsePositiveInteger(process.env.CODEX_TIMEOUT_MS, 120000, "CODEX_TIMEOUT_MS")
+        codexTimeoutMs: parsePositiveInteger(process.env.CODEX_TIMEOUT_MS, 120000, "CODEX_TIMEOUT_MS"),
+        eventStorePath: path.resolve(process.cwd(), process.env.EVENT_STORE_PATH || ".data/events.jsonl")
     };
 };
-
