@@ -85,6 +85,7 @@ article {
 }
 
 input,
+select,
 textarea {
     box-sizing: border-box;
     width: 100%;
@@ -94,6 +95,10 @@ textarea {
     color: inherit;
     background: #ffffff;
     font: inherit;
+}
+
+select {
+    appearance: auto;
 }
 
 textarea {

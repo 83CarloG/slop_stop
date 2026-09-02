@@ -1,6 +1,6 @@
 # Slop Stop
 
-Minimal Node.js MVP for governing versioned functional requirements with explicit human approval.
+Minimal Node.js MVP for governing versioned functional and technical requirements with explicit human approval.
 
 ## Requirements
 
@@ -36,6 +36,12 @@ The web UI supports draft creation, immutable revisions, review submission, and 
 
 The M1 store is designed for one local application process. If a JSONL record is malformed, reads and writes stop with `STORE_CORRUPTED`; repair is deliberately manual.
 
+## Technical requirements
+
+An approved functional requirement can originate multiple technical requirements. Each technical requirement keeps exactly one immutable link to the originating functional requirement ID and approved version.
+
+Technical requirements use the same versioned human-review lifecycle. The UI supports navigation from functional intent to its technical derivations and back to the exact approved origin.
+
 ## Codex review proposals
 
 For a draft requirement, the UI can send its current title, origin, and statement to Codex after explicit confirmation. Codex returns a structured proposal with a summary, missing information, ambiguities, and a suggested revision.
@@ -68,4 +74,4 @@ The real Codex smoke test is optional and is never run by the regular test suite
 
 ## Current limits
 
-Identity is declared through a display name and is not authenticated. There is no database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
+Identity is declared through a display name and is not authenticated. There is no task lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
