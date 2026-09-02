@@ -1,10 +1,15 @@
 "use strict";
 
+const crypto = require("crypto");
 const path = require("path");
 const process = require("process");
 
 const fastifyStatic = require("@fastify/static");
+const fastifySwagger = require("@fastify/swagger");
+const fastifySwaggerUi = require("@fastify/swagger-ui");
 const Fastify = require("fastify");
+
+const getOpenApiConfig = require(path.resolve(process.cwd(), "config", "openapi.js"));
 
 const createFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "createFunctionalRequirement.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
@@ -57,8 +62,26 @@ module.exports = function createApp() {
             }
         },
         bodyLimit: 8192,
+        genReqId: function () {
+            return crypto.randomUUID();
+        },
         logger: false
     });
+
+    app.register(fastifySwagger, getOpenApiConfig());
+    app.register(fastifySwaggerUi, {
+        routePrefix: "/documentation",
+        staticCSP: true,
+        uiConfig: {
+            deepLinking: true,
+            displayRequestDuration: true
+        }
+    });
+
+    app.register(function registerApplicationRoutes(app, _options, done) {
+        app.addHook("onRequest", async function (request, reply) {
+            reply.header("x-request-id", request.id);
+        });
 
     app.register(fastifyStatic, {
         root: path.resolve(process.cwd(), "public")
@@ -68,16 +91,31 @@ module.exports = function createApp() {
         return await reply.sendFile("index.html");
     });
 
-    app.get("/health", async function () {
+    app.get("/health", {
+        schema: {
+            operationId: "getHealth",
+            summary: "Get application readiness",
+            tags: ["System"]
+        }
+    }, async function () {
         return await getHealth();
     });
 
-    app.get("/api/providers/codex", async function () {
+    app.get("/api/providers/codex", {
+        schema: {
+            operationId: "getCodexStatus",
+            summary: "Get Codex CLI readiness",
+            tags: ["Codex"]
+        }
+    }, async function () {
         return await getCodexStatus();
     });
 
     app.post("/api/functional-requirements", {
         schema: {
+            operationId: "createFunctionalRequirement",
+            summary: "Create a functional requirement draft",
+            tags: ["Functional requirements"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -95,12 +133,23 @@ module.exports = function createApp() {
         return reply.code(201).send(requirement);
     });
 
-    app.get("/api/functional-requirements", async function () {
+    app.get("/api/functional-requirements", {
+        schema: {
+            operationId: "listFunctionalRequirements",
+            summary: "List functional requirements",
+            tags: ["Functional requirements"]
+        }
+    }, async function () {
         return await listFunctionalRequirements();
     });
 
     app.get("/api/functional-requirements/:requirementId", {
-        schema: {params: requirementIdSchema}
+        schema: {
+            operationId: "getFunctionalRequirement",
+            params: requirementIdSchema,
+            summary: "Get one functional requirement",
+            tags: ["Functional requirements"]
+        }
     }, async function (request) {
         return await getFunctionalRequirement({
             requirementId: request.params.requirementId
@@ -109,6 +158,9 @@ module.exports = function createApp() {
 
     app.post("/api/functional-requirements/:requirementId/revisions", {
         schema: {
+            operationId: "reviseFunctionalRequirement",
+            summary: "Create an immutable requirement revision",
+            tags: ["Functional requirements"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -132,6 +184,9 @@ module.exports = function createApp() {
 
     app.post("/api/functional-requirements/:requirementId/review", {
         schema: {
+            operationId: "submitFunctionalRequirementReview",
+            summary: "Submit a draft for human review",
+            tags: ["Functional requirements"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -151,6 +206,9 @@ module.exports = function createApp() {
 
     app.post("/api/functional-requirements/:requirementId/decisions", {
         schema: {
+            operationId: "decideFunctionalRequirement",
+            summary: "Approve or reject a reviewed requirement",
+            tags: ["Functional requirements"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -172,6 +230,9 @@ module.exports = function createApp() {
 
     app.post("/api/functional-requirements/:requirementId/ai-reviews", {
         schema: {
+            operationId: "proposeFunctionalRequirementAiReview",
+            summary: "Record an explicitly confirmed Codex review proposal",
+            tags: ["Codex", "Functional requirements"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -192,6 +253,9 @@ module.exports = function createApp() {
 
     app.post("/api/providers/codex/smoke", {
         schema: {
+            operationId: "runCodexSmoke",
+            summary: "Run an explicitly confirmed Codex connectivity check",
+            tags: ["Codex"],
             body: {
                 additionalProperties: false,
                 properties: {
@@ -208,7 +272,7 @@ module.exports = function createApp() {
         });
     });
 
-    app.setErrorHandler(function (error, _request, reply) {
+        app.setErrorHandler(function (error, _request, reply) {
         const statusCode = error.validation ? 400 : mapErrorStatus(error);
         const code = error.validation ? "INVALID_REQUEST" : (error.code || "INTERNAL_ERROR");
         const safeMessages = {
@@ -232,6 +296,9 @@ module.exports = function createApp() {
             message: safeMessages[code] || safeMessages.INTERNAL_ERROR,
             status: "error"
         });
+        });
+
+        done();
     });
 
     return app;
