@@ -9,17 +9,21 @@ const createApp = require(path.resolve(process.cwd(), "server", "app.js"));
 
 const expectedOperations = [
     "createFunctionalRequirement",
+    "createTask",
     "createTechnicalRequirement",
     "decideFunctionalRequirement",
     "decideTechnicalRequirement",
     "getCodexStatus",
     "getFunctionalRequirement",
     "getHealth",
+    "getTask",
     "getTechnicalRequirement",
     "listFunctionalRequirements",
+    "listTasks",
     "listTechnicalRequirements",
     "proposeFunctionalRequirementAiReview",
     "reviseFunctionalRequirement",
+    "reviseTask",
     "reviseTechnicalRequirement",
     "runCodexSmoke",
     "submitFunctionalRequirementReview",
@@ -62,6 +66,7 @@ test("the generated OpenAPI contract documents every API operation", async funct
         assert.equal(new Set(operations).size, operations.length);
         assert.ok(contract.paths["/api/functional-requirements/{requirementId}/ai-reviews"]);
         assert.ok(contract.paths["/api/technical-requirements/{requirementId}/decisions"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/revisions"]);
     } finally {
         await app.close();
     }
