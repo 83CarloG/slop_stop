@@ -20,6 +20,8 @@ npm start
 
 Open `http://127.0.0.1:3000`.
 
+`npm start` watches application and configuration dependencies and automatically restarts the local server after changes. Use `npm run start:once` when a single non-watching process is required.
+
 ## API contract
 
 OpenAPI 3.0.3 is generated from the same route schemas used for request validation:

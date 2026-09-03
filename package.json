@@ -8,11 +8,12 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env --watch server/start.js",
+    "dev": "npm start",
     "setup:harness": "node scripts/setupHarness.js",
     "smoke:codex": "node --env-file-if-exists=.env scripts/smokeCodex.js",
     "smoke:codex-review": "node --env-file-if-exists=.env scripts/smokeCodexReview.js",
-    "start": "node --env-file-if-exists=.env server/start.js",
+    "start": "node --env-file-if-exists=.env --watch server/start.js",
+    "start:once": "node --env-file-if-exists=.env server/start.js",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:architecture": "node --test tests/architecture.test.js"
   },
