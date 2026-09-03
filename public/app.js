@@ -9,6 +9,7 @@ const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
 const derivedTaskList = document.querySelector("#derived-task-list");
 const derivedTechnicalList = document.querySelector("#derived-technical-list");
+const documentTree = document.querySelector("#document-tree");
 const processDetail = document.querySelector("#process-detail");
 const processEmpty = document.querySelector("#process-empty");
 const processTraceTimeline = document.querySelector("#process-trace-timeline");
@@ -20,7 +21,6 @@ const requirementDetailStatus = document.querySelector("#requirement-detail-stat
 const requirementDetailTitle = document.querySelector("#requirement-detail-title");
 const requirementDetailVersion = document.querySelector("#requirement-detail-version");
 const requirementForm = document.querySelector("#requirement-form");
-const requirementList = document.querySelector("#requirement-list");
 const requirementMessage = document.querySelector("#requirement-message");
 const requirementSourceInput = document.querySelector("#requirement-source");
 const requirementStatementInput = document.querySelector("#requirement-statement");
@@ -41,7 +41,6 @@ const technicalDetailStatus = document.querySelector("#technical-detail-status")
 const technicalDetailTitle = document.querySelector("#technical-detail-title");
 const technicalDetailVersion = document.querySelector("#technical-detail-version");
 const technicalForm = document.querySelector("#technical-requirement-form");
-const technicalList = document.querySelector("#technical-list");
 const technicalMessage = document.querySelector("#technical-message");
 const technicalOriginInput = document.querySelector("#technical-origin");
 const technicalOriginLink = document.querySelector("#technical-origin-link");
@@ -59,7 +58,6 @@ const taskDetailStatus = document.querySelector("#task-detail-status");
 const taskDetailTitle = document.querySelector("#task-detail-title");
 const taskDetailVersion = document.querySelector("#task-detail-version");
 const taskForm = document.querySelector("#task-form");
-const taskList = document.querySelector("#task-list");
 const taskMessage = document.querySelector("#task-message");
 const taskObjectiveInput = document.querySelector("#task-objective");
 const taskOriginInput = document.querySelector("#task-origin");
@@ -86,7 +84,10 @@ let selectedTask = null;
 let selectedTaskTrace = null;
 let functionalRequirements = [];
 let technicalRequirements = [];
+let tasks = [];
+let activeDocument = null;
 let codexReady = false;
+const collapsedTreeNodes = new Set();
 
 async function readJson(response) {
     const data = await response.json();
@@ -276,6 +277,190 @@ function createRequirementListButton(requirement, clickHandler) {
     return button;
 }
 
+function getActiveDocumentPath() {
+    if (!activeDocument) {
+        return [];
+    }
+
+    if (activeDocument.type === "functional") {
+        return [{id: activeDocument.id, type: "functional"}];
+    }
+
+    if (activeDocument.type === "technical") {
+        const technicalRequirement = technicalRequirements.find(function (item) {
+            return item.id === activeDocument.id;
+        });
+
+        return technicalRequirement ? [
+            {id: technicalRequirement.functionalRequirementId, type: "functional"},
+            {id: technicalRequirement.id, type: "technical"}
+        ] : [];
+    }
+
+    const task = tasks.find(function (item) {
+        return item.id === activeDocument.id;
+    });
+    const technicalRequirement = task && technicalRequirements.find(function (item) {
+        return item.id === task.technicalRequirementId;
+    });
+
+    return task && technicalRequirement ? [
+        {id: technicalRequirement.functionalRequirementId, type: "functional"},
+        {id: technicalRequirement.id, type: "technical"},
+        {id: task.id, type: "task"}
+    ] : [];
+}
+
+function setActiveDocument(type, id) {
+    activeDocument = {id, type};
+
+    for (const item of getActiveDocumentPath()) {
+        collapsedTreeNodes.delete(`${item.type}:${item.id}`);
+    }
+}
+
+async function openDocument(type, id) {
+    const panelByType = {
+        functional: "functional",
+        task: "tasks",
+        technical: "technical"
+    };
+    const messageByType = {
+        functional: requirementMessage,
+        task: taskMessage,
+        technical: technicalMessage
+    };
+
+    activateTab(panelByType[type]);
+
+    try {
+        if (type === "functional") {
+            await loadRequirement(id);
+        } else if (type === "technical") {
+            await loadTechnicalRequirement(id);
+        } else {
+            await loadTask(id);
+        }
+
+        messageByType[type].textContent = "";
+        document.querySelector(`[data-panel="${panelByType[type]}"]`).focus();
+    } catch (error) {
+        messageByType[type].textContent = error.message;
+    }
+}
+
+function createTreeNode(documentItem, type, children) {
+    const item = document.createElement("li");
+    const row = document.createElement("div");
+    const collapseKey = `${type}:${documentItem.id}`;
+    const activePath = getActiveDocumentPath();
+    const isCurrent = activeDocument && activeDocument.type === type && activeDocument.id === documentItem.id;
+    const isInActivePath = activePath.some(function (pathItem) {
+        return pathItem.type === type && pathItem.id === documentItem.id;
+    });
+
+    item.className = `tree-node tree-node-${type}`;
+    row.className = "tree-row";
+
+    if (children.length > 0) {
+        const toggle = document.createElement("button");
+        const childList = document.createElement("ul");
+        const isExpanded = !collapsedTreeNodes.has(collapseKey);
+
+        toggle.type = "button";
+        toggle.className = "tree-toggle";
+        toggle.setAttribute("aria-expanded", String(isExpanded));
+        toggle.setAttribute("aria-label", `${isExpanded ? "Collapse" : "Expand"} children of ${documentItem.title}`);
+        toggle.textContent = isExpanded ? "▾" : "▸";
+        childList.className = "tree-children";
+        childList.hidden = !isExpanded;
+
+        for (const child of children) {
+            childList.append(child);
+        }
+
+        toggle.addEventListener("click", function () {
+            const expanded = toggle.getAttribute("aria-expanded") === "true";
+            toggle.setAttribute("aria-expanded", String(!expanded));
+            toggle.setAttribute("aria-label", `${expanded ? "Expand" : "Collapse"} children of ${documentItem.title}`);
+            toggle.textContent = expanded ? "▸" : "▾";
+            childList.hidden = expanded;
+
+            if (expanded) {
+                collapsedTreeNodes.add(collapseKey);
+            } else {
+                collapsedTreeNodes.delete(collapseKey);
+            }
+        });
+
+        row.append(toggle);
+        item.append(row, childList);
+    } else {
+        const spacer = document.createElement("span");
+        spacer.className = "tree-toggle-spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        row.append(spacer);
+        item.append(row);
+    }
+
+    const button = document.createElement("button");
+    const title = document.createElement("span");
+    const metadata = document.createElement("span");
+
+    button.type = "button";
+    button.className = "tree-document";
+    button.dataset.documentId = documentItem.id;
+    button.dataset.documentType = type;
+    button.setAttribute("aria-current", isCurrent ? "page" : "false");
+    title.className = "tree-document-title";
+    title.textContent = documentItem.title;
+    metadata.className = `tree-document-meta status-${documentItem.status}`;
+    metadata.textContent = `${documentItem.status} · v${documentItem.currentVersion}`;
+    button.append(title, metadata);
+    button.addEventListener("click", async function () {
+        await openDocument(type, documentItem.id);
+    });
+
+    if (isInActivePath) {
+        item.classList.add(isCurrent ? "is-current" : "is-ancestor");
+    }
+
+    row.append(button);
+    return item;
+}
+
+function renderDocumentTree() {
+    const root = document.createElement("ul");
+    root.className = "document-tree-list";
+    documentTree.replaceChildren();
+
+    if (functionalRequirements.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "No documents yet.";
+        documentTree.append(empty);
+        return;
+    }
+
+    for (const functionalRequirement of functionalRequirements) {
+        const technicalNodes = technicalRequirements.filter(function (technicalRequirement) {
+            return technicalRequirement.functionalRequirementId === functionalRequirement.id;
+        }).map(function (technicalRequirement) {
+            const taskNodes = tasks.filter(function (task) {
+                return task.technicalRequirementId === technicalRequirement.id;
+            }).map(function (task) {
+                return createTreeNode(task, "task", []);
+            });
+
+            return createTreeNode(technicalRequirement, "technical", taskNodes);
+        });
+
+        root.append(createTreeNode(functionalRequirement, "functional", technicalNodes));
+    }
+
+    documentTree.append(root);
+}
+
 async function loadDerivedTechnicalRequirements(functionalRequirementId) {
     const result = await requestJson(`/api/technical-requirements?functionalRequirementId=${functionalRequirementId}`);
     derivedTechnicalList.replaceChildren();
@@ -346,9 +531,11 @@ function renderTechnicalRequirement(requirement) {
 async function loadTechnicalRequirement(requirementId) {
     const requirement = await requestJson(`/api/technical-requirements/${requirementId}`);
     selectedTechnicalRequirementId = requirement.id;
+    setActiveDocument("technical", requirement.id);
     renderTechnicalRequirement(requirement);
     taskOriginInput.value = requirement.status === "approved" ? requirement.id : "";
     await loadDerivedTasks(requirement.id);
+    renderDocumentTree();
 }
 
 async function loadDerivedTasks(technicalRequirementId) {
@@ -430,8 +617,10 @@ async function loadTask(taskId) {
         requestJson(`/api/tasks/${taskId}/trace`)
     ]);
     selectedTaskId = task.id;
+    setActiveDocument("task", task.id);
     renderTask(task);
     renderTaskTrace(trace);
+    renderDocumentTree();
 }
 
 function renderTaskOriginOptions() {
@@ -461,21 +650,7 @@ function renderTaskOriginOptions() {
 
 async function loadTasks() {
     const result = await requestJson("/api/tasks");
-    taskList.replaceChildren();
-
-    for (const task of result.items) {
-        const item = document.createElement("li");
-        const button = createRequirementListButton(task, async function () {
-            try {
-                await loadTask(task.id);
-                taskMessage.textContent = "";
-            } catch (error) {
-                taskMessage.textContent = error.message;
-            }
-        });
-        item.append(button);
-        taskList.append(item);
-    }
+    tasks = result.items;
 
     if (selectedTaskId) {
         const selectedStillExists = result.items.some(function (task) {
@@ -490,6 +665,8 @@ async function loadTasks() {
     if (selectedTechnicalRequirementId) {
         await loadDerivedTasks(selectedTechnicalRequirementId);
     }
+
+    renderDocumentTree();
 }
 
 function renderTechnicalOriginOptions() {
@@ -520,22 +697,7 @@ function renderTechnicalOriginOptions() {
 async function loadTechnicalRequirements() {
     const result = await requestJson("/api/technical-requirements");
     technicalRequirements = result.items;
-    technicalList.replaceChildren();
     renderTaskOriginOptions();
-
-    for (const requirement of result.items) {
-        const item = document.createElement("li");
-        const button = createRequirementListButton(requirement, async function () {
-            try {
-                await loadTechnicalRequirement(requirement.id);
-                technicalMessage.textContent = "";
-            } catch (error) {
-                technicalMessage.textContent = error.message;
-            }
-        });
-        item.append(button);
-        technicalList.append(item);
-    }
 
     if (selectedTechnicalRequirementId) {
         const selectedStillExists = result.items.some(function (requirement) {
@@ -550,35 +712,24 @@ async function loadTechnicalRequirements() {
     if (selectedRequirementId) {
         await loadDerivedTechnicalRequirements(selectedRequirementId);
     }
+
+    renderDocumentTree();
 }
 
 async function loadRequirement(requirementId) {
     const requirement = await requestJson(`/api/functional-requirements/${requirementId}`);
     selectedRequirementId = requirement.id;
+    setActiveDocument("functional", requirement.id);
     renderRequirement(requirement);
     technicalOriginInput.value = requirement.status === "approved" ? requirement.id : "";
     await loadDerivedTechnicalRequirements(requirement.id);
+    renderDocumentTree();
 }
 
 async function loadRequirements() {
     const result = await requestJson("/api/functional-requirements");
     functionalRequirements = result.items;
-    requirementList.replaceChildren();
     renderTechnicalOriginOptions();
-
-    for (const requirement of result.items) {
-        const item = document.createElement("li");
-        const button = createRequirementListButton(requirement, async function () {
-            try {
-                await loadRequirement(requirement.id);
-                requirementMessage.textContent = "";
-            } catch (error) {
-                requirementMessage.textContent = error.message;
-            }
-        });
-        item.append(button);
-        requirementList.append(item);
-    }
 
     if (selectedRequirementId) {
         const selectedStillExists = result.items.some(function (requirement) {
@@ -589,6 +740,8 @@ async function loadRequirements() {
             await loadRequirement(selectedRequirementId);
         }
     }
+
+    renderDocumentTree();
 }
 
 async function performRequirementAction(url, createPayload, confirmationMessage) {
