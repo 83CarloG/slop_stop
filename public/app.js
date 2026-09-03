@@ -9,6 +9,8 @@ const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
 const derivedTaskList = document.querySelector("#derived-task-list");
 const derivedTechnicalList = document.querySelector("#derived-technical-list");
+const processDetail = document.querySelector("#process-detail");
+const processEmpty = document.querySelector("#process-empty");
 const processTraceTimeline = document.querySelector("#process-trace-timeline");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
@@ -71,6 +73,9 @@ const taskVersions = document.querySelector("#task-versions");
 const traceFunctionalLink = document.querySelector("#trace-functional-link");
 const traceTaskCurrent = document.querySelector("#trace-task-current");
 const traceTechnicalLink = document.querySelector("#trace-technical-link");
+const viewProcessButton = document.querySelector("#view-process");
+const workspacePanels = Array.from(document.querySelectorAll("[data-panel]"));
+const workspaceTabs = Array.from(document.querySelectorAll("[role=tab][data-tab]"));
 
 let selectedRequirementId = null;
 let selectedRequirement = null;
@@ -122,6 +127,41 @@ function restoreActorName() {
 async function requestJson(url, options = {}) {
     const response = await fetch(url, options);
     return await readJson(response);
+}
+
+function activateTab(tabName, focusTab = false) {
+    for (const tab of workspaceTabs) {
+        const isActive = tab.dataset.tab === tabName;
+        tab.setAttribute("aria-selected", String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+
+        if (isActive && focusTab) {
+            tab.focus();
+        }
+    }
+
+    for (const panel of workspacePanels) {
+        panel.hidden = panel.dataset.panel !== tabName;
+    }
+}
+
+function moveTabFocus(currentTab, key) {
+    const currentIndex = workspaceTabs.indexOf(currentTab);
+    let nextIndex = currentIndex;
+
+    if (key === "ArrowRight") {
+        nextIndex = (currentIndex + 1) % workspaceTabs.length;
+    } else if (key === "ArrowLeft") {
+        nextIndex = (currentIndex - 1 + workspaceTabs.length) % workspaceTabs.length;
+    } else if (key === "Home") {
+        nextIndex = 0;
+    } else if (key === "End") {
+        nextIndex = workspaceTabs.length - 1;
+    } else {
+        return;
+    }
+
+    workspaceTabs[nextIndex].focus();
 }
 
 function parseAcceptanceCriteria(value) {
@@ -251,6 +291,7 @@ async function loadDerivedTechnicalRequirements(functionalRequirementId) {
         const item = document.createElement("li");
         const button = createRequirementListButton(requirement, async function () {
             try {
+                activateTab("technical");
                 await loadTechnicalRequirement(requirement.id);
                 technicalMessage.textContent = "";
                 technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -325,6 +366,7 @@ async function loadDerivedTasks(technicalRequirementId) {
         const item = document.createElement("li");
         const button = createRequirementListButton(task, async function () {
             try {
+                activateTab("tasks");
                 await loadTask(task.id);
                 taskMessage.textContent = "";
                 taskDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -368,6 +410,8 @@ function renderTask(task) {
 
 function renderTaskTrace(trace) {
     selectedTaskTrace = trace;
+    processEmpty.hidden = true;
+    processDetail.hidden = false;
     traceFunctionalLink.textContent = `Functional: ${trace.chain.functionalRequirement.title} — v${trace.chain.functionalRequirement.version}`;
     traceTechnicalLink.textContent = `Technical: ${trace.chain.technicalRequirement.title} — v${trace.chain.technicalRequirement.version}`;
     traceTaskCurrent.textContent = `Task: ${trace.chain.task.title} — v${trace.chain.task.version}`;
@@ -864,6 +908,7 @@ technicalOriginLink.addEventListener("click", async function () {
     }
 
     try {
+        activateTab("functional");
         await loadRequirement(selectedTechnicalRequirement.functionalRequirementId);
         requirementMessage.textContent = "";
         requirementDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -922,11 +967,18 @@ taskOriginLink.addEventListener("click", async function () {
     }
 
     try {
+        activateTab("technical");
         await loadTechnicalRequirement(selectedTask.technicalRequirementId);
         technicalMessage.textContent = "";
         technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
     } catch (error) {
         technicalMessage.textContent = error.message;
+    }
+});
+
+viewProcessButton.addEventListener("click", function () {
+    if (selectedTaskTrace) {
+        activateTab("process", true);
     }
 });
 
@@ -936,6 +988,7 @@ traceFunctionalLink.addEventListener("click", async function () {
     }
 
     try {
+        activateTab("functional");
         await loadRequirement(selectedTaskTrace.chain.functionalRequirement.id);
         requirementMessage.textContent = "";
         requirementDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -950,6 +1003,7 @@ traceTechnicalLink.addEventListener("click", async function () {
     }
 
     try {
+        activateTab("technical");
         await loadTechnicalRequirement(selectedTaskTrace.chain.technicalRequirement.id);
         technicalMessage.textContent = "";
         technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -957,6 +1011,21 @@ traceTechnicalLink.addEventListener("click", async function () {
         technicalMessage.textContent = error.message;
     }
 });
+
+for (const tab of workspaceTabs) {
+    tab.addEventListener("click", function () {
+        activateTab(tab.dataset.tab);
+    });
+    tab.addEventListener("keydown", function (event) {
+        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            moveTabFocus(tab, event.key);
+        } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activateTab(tab.dataset.tab);
+        }
+    });
+}
 
 restoreActorName();
 loadStatus();
