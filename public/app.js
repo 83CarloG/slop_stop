@@ -18,6 +18,7 @@ const rejectRequirementButton = document.querySelector("#reject-requirement");
 const rejectTaskButton = document.querySelector("#reject-task");
 const runTaskReadinessCheckButton = document.querySelector("#run-task-readiness-check");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
+const requestTaskExecutionProposalButton = document.querySelector("#request-task-execution-proposal");
 const requirementDetail = document.querySelector("#requirement-detail");
 const requirementDetailSource = document.querySelector("#requirement-detail-source");
 const requirementDetailStatus = document.querySelector("#requirement-detail-status");
@@ -61,6 +62,7 @@ const taskDetail = document.querySelector("#task-detail");
 const taskDetailStatus = document.querySelector("#task-detail-status");
 const taskDetailTitle = document.querySelector("#task-detail-title");
 const taskDetailVersion = document.querySelector("#task-detail-version");
+const taskExecutionProposals = document.querySelector("#task-execution-proposals");
 const taskForm = document.querySelector("#task-form");
 const taskMessage = document.querySelector("#task-message");
 const taskObjectiveInput = document.querySelector("#task-objective");
@@ -188,6 +190,7 @@ function createTimelineText(event) {
         task_created: "Task draft created",
         task_check_evaluated: "Task readiness check evaluated",
         task_decided: "Task decision recorded",
+        task_execution_proposed: "Codex execution proposal recorded",
         task_revised: "Task revision created",
         task_review_submitted: "Task submitted for review",
         technical_requirement_created: "Technical draft created",
@@ -199,6 +202,21 @@ function createTimelineText(event) {
     const result = event.result ? ` — ${event.result.status} · ${event.result.consequence.replace(/_/gu, " ")}` : "";
     const note = event.note ? ` — ${event.note}` : "";
     return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${result}${note}`;
+}
+
+function updateCodexActionState() {
+    const latestCheck = selectedTask ? selectedTask.checks.at(-1) : null;
+
+    requestAiReviewButton.disabled = !selectedRequirement ||
+        selectedRequirement.status !== "draft" ||
+        !codexReady;
+    requestTaskExecutionProposalButton.disabled = !selectedTask ||
+        !codexReady ||
+        selectedTask.status !== "approved" ||
+        !latestCheck ||
+        latestCheck.version !== selectedTask.currentVersion ||
+        latestCheck.status !== "passed" ||
+        latestCheck.consequence !== "allow";
 }
 
 function renderRequirement(requirement) {
@@ -220,7 +238,7 @@ function renderRequirement(requirement) {
     submitRequirementButton.disabled = requirement.status !== "draft";
     approveRequirementButton.disabled = requirement.status !== "in_review";
     rejectRequirementButton.disabled = requirement.status !== "in_review";
-    requestAiReviewButton.disabled = requirement.status !== "draft" || !codexReady;
+    updateCodexActionState();
 
     aiReviewList.replaceChildren();
     for (const proposal of requirement.aiReviews) {
@@ -620,6 +638,49 @@ function renderTask(task) {
         taskReadinessSummary.textContent = "No readiness check recorded.";
     }
 
+    updateCodexActionState();
+
+    taskExecutionProposals.replaceChildren();
+    for (const entry of task.executionProposals) {
+        const container = document.createElement("section");
+        const heading = document.createElement("h5");
+        const summary = document.createElement("p");
+        const changesHeading = document.createElement("strong");
+        const changes = document.createElement("ul");
+        const validationHeading = document.createElement("strong");
+        const validation = document.createElement("ul");
+        const risksHeading = document.createElement("strong");
+        const risks = document.createElement("ul");
+
+        container.className = "ai-review";
+        heading.textContent = `Version ${entry.version} proposal by ${entry.actor.name} at ${entry.createdAt}`;
+        summary.textContent = entry.proposal.summary;
+        changesHeading.textContent = "Proposed changes";
+        validationHeading.textContent = "Validation steps";
+        risksHeading.textContent = "Risks";
+
+        for (const change of entry.proposal.proposedChanges) {
+            const item = document.createElement("li");
+            item.textContent = `${change.path}: ${change.description}`;
+            changes.append(item);
+        }
+
+        for (const step of entry.proposal.validationSteps) {
+            const item = document.createElement("li");
+            item.textContent = step;
+            validation.append(item);
+        }
+
+        for (const risk of entry.proposal.risks) {
+            const item = document.createElement("li");
+            item.textContent = risk;
+            risks.append(item);
+        }
+
+        container.append(heading, summary, changesHeading, changes, validationHeading, validation, risksHeading, risks);
+        taskExecutionProposals.append(container);
+    }
+
     taskVersions.replaceChildren();
     for (const version of task.versions) {
         const item = document.createElement("li");
@@ -870,9 +931,7 @@ async function loadStatus() {
         codexStatus.textContent = "Codex status could not be checked.";
     }
 
-    if (selectedRequirement) {
-        requestAiReviewButton.disabled = selectedRequirement.status !== "draft" || !codexReady;
-    }
+    updateCodexActionState();
 }
 
 codexSmokeButton.addEventListener("click", async function () {
@@ -1202,6 +1261,16 @@ runTaskReadinessCheckButton.addEventListener("click", async function () {
     await performTaskAction(`/api/tasks/${selectedTaskId}/checks`, function () {
         return {};
     }, "Run the deterministic approved-chain readiness check?");
+});
+
+requestTaskExecutionProposalButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/execution-proposals`, function () {
+        return {confirmed: true};
+    }, "Send the approved chain to Codex for a read-only execution proposal?");
 });
 
 taskOriginLink.addEventListener("click", async function () {

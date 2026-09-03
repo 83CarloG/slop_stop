@@ -58,7 +58,9 @@ Each task exposes a read-only process trace with the exact functional and techni
 
 The first deterministic readiness check evaluates the exact approved functional → technical → task chain. Each run records a system-attributed consequence: `stop` for draft or rejected work, `human_intervention` while human review is pending, or `allow` for an approved exact chain.
 
-Task execution, results, and completion remain later milestones. The readiness check never executes commands or calls Codex.
+After an `allow` result, an explicitly confirmed UI action can ask Codex for a structured execution proposal. Codex receives only the normalized approved chain, runs from an isolated temporary directory with a read-only sandbox, and is instructed not to inspect or modify the repository. The proposal records suggested paths, validation steps, and risks; it cannot change task state or claim completion.
+
+Task execution, results, and completion remain later milestones. Neither the readiness check nor the proposal executes commands in the project workspace.
 
 ## Codex review proposals
 
@@ -66,7 +68,7 @@ For a draft requirement, the UI can send its current title, origin, and statemen
 
 The proposal is recorded as AI evidence but cannot change state, revise content, or approve the requirement. A human may copy the suggestion into the revision fields and must then create the revision separately.
 
-Codex runs through [non-interactive mode](https://developers.openai.com/codex/noninteractive) with an output schema, an ephemeral session, ignored local rules, and a read-only sandbox. Raw prompts, reasoning, and JSONL output are not persisted.
+Codex runs through [non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode) with an output schema, an ephemeral session, ignored local rules, and a read-only sandbox. Raw prompts, reasoning, and JSONL output are not persisted.
 
 Run the fixed, isolated real review smoke test only when intended:
 
@@ -92,4 +94,4 @@ The real Codex smoke test is optional and is never run by the regular test suite
 
 ## Current limits
 
-Identity is declared through a display name and is not authenticated. There is no task execution lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority.
+Identity is declared through a display name and is not authenticated. There is no task execution lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority. Codex execution proposals are advisory evidence only.

@@ -48,6 +48,9 @@ test("the hierarchy is shared and the process panel remains read-only", function
     assert.match(html, /id="reject-task"/u);
     assert.match(html, /id="run-task-readiness-check"/u);
     assert.match(html, /id="task-readiness-summary"/u);
+    assert.match(html, /id="request-task-execution-proposal"/u);
+    assert.match(html, /This isolated read-only step is instructed not to inspect or modify project files/u);
+    assert.equal(client.includes("task_execution_proposed"), true);
     assert.equal(client.includes("task_check_evaluated"), true);
     assert.match(client, /consequence\.replace\(\/_\/gu, " "\)/u);
     assert.equal(client.includes("functionalRequirementId === functionalRequirement.id"), true);
