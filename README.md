@@ -56,7 +56,9 @@ Tasks use the human lifecycle `draft → in_review → approved | rejected`. A r
 
 Each task exposes a read-only process trace with the exact functional and technical origins plus one normalized chronological timeline. Raw event payloads and Codex internals are not exposed.
 
-Task readiness, execution, checks, results, and completion remain later milestones.
+The first deterministic readiness check evaluates the exact approved functional → technical → task chain. Each run records a system-attributed `allow` or `stop` result without executing commands or calling Codex.
+
+Human-intervention routing, task execution, results, and completion remain later increments.
 
 ## Codex review proposals
 

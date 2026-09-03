@@ -16,6 +16,7 @@ const processEmpty = document.querySelector("#process-empty");
 const processTraceTimeline = document.querySelector("#process-trace-timeline");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
 const rejectTaskButton = document.querySelector("#reject-task");
+const runTaskReadinessCheckButton = document.querySelector("#run-task-readiness-check");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
 const requirementDetail = document.querySelector("#requirement-detail");
 const requirementDetailSource = document.querySelector("#requirement-detail-source");
@@ -69,6 +70,8 @@ const taskRevisionCriteriaInput = document.querySelector("#task-revision-criteri
 const taskRevisionNoteInput = document.querySelector("#task-revision-note");
 const taskRevisionObjectiveInput = document.querySelector("#task-revision-objective");
 const taskRevisionTitleInput = document.querySelector("#task-revision-title");
+const taskReadinessRules = document.querySelector("#task-readiness-rules");
+const taskReadinessSummary = document.querySelector("#task-readiness-summary");
 const taskTitleInput = document.querySelector("#task-title");
 const taskVersions = document.querySelector("#task-versions");
 const traceFunctionalLink = document.querySelector("#trace-functional-link");
@@ -183,6 +186,7 @@ function createTimelineText(event) {
         functional_requirement_revised: "Revision created",
         functional_requirement_review_submitted: "Submitted for review",
         task_created: "Task draft created",
+        task_check_evaluated: "Task readiness check evaluated",
         task_decided: "Task decision recorded",
         task_revised: "Task revision created",
         task_review_submitted: "Task submitted for review",
@@ -192,8 +196,9 @@ function createTimelineText(event) {
         technical_requirement_review_submitted: "Technical requirement submitted for review",
         ai_review_proposed: "Codex review proposed"
     };
+    const result = event.result ? ` — ${event.result.status} · ${event.result.consequence}` : "";
     const note = event.note ? ` — ${event.note}` : "";
-    return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${note}`;
+    return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${result}${note}`;
 }
 
 function renderRequirement(requirement) {
@@ -598,6 +603,21 @@ function renderTask(task) {
     submitTaskButton.disabled = task.status !== "draft";
     approveTaskButton.disabled = task.status !== "in_review";
     rejectTaskButton.disabled = task.status !== "in_review";
+
+    taskReadinessRules.replaceChildren();
+    const latestCheck = task.checks.at(-1);
+
+    if (latestCheck) {
+        taskReadinessSummary.textContent = `${latestCheck.checkId}: ${latestCheck.status.toUpperCase()} · ${latestCheck.consequence.toUpperCase()} — version ${latestCheck.version} at ${latestCheck.checkedAt}`;
+
+        for (const rule of latestCheck.rules) {
+            const item = document.createElement("li");
+            item.textContent = `${rule.ruleId}: ${rule.status}`;
+            taskReadinessRules.append(item);
+        }
+    } else {
+        taskReadinessSummary.textContent = "No readiness check recorded.";
+    }
 
     taskVersions.replaceChildren();
     for (const version of task.versions) {
@@ -1171,6 +1191,16 @@ rejectTaskButton.addEventListener("click", async function () {
             note: taskRevisionNoteInput.value
         };
     }, "Reject this task version?");
+});
+
+runTaskReadinessCheckButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/checks`, function () {
+        return {};
+    }, "Run the deterministic approved-chain readiness check?");
 });
 
 taskOriginLink.addEventListener("click", async function () {
