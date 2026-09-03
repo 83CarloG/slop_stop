@@ -28,6 +28,9 @@ if (argumentsList[0] === "--version") {
         const isRequirementReview = input.includes("Review one functional requirement");
         const isTaskExecutionProposal = input.includes("Propose an implementation approach for one approved task");
         const isTaskExecution = input.includes("Implement one approved task in the current disposable Git workspace");
+        const windowsSandboxIsValid = process.platform !== "win32" ||
+            !isTaskExecution ||
+            argumentsList[argumentsList.indexOf("--config") + 1] === "windows.sandbox=\"elevated\"";
 
         if (promptLeakedToArguments || ((isRequirementReview || isTaskExecution) && process.env.OPENAI_API_KEY)) {
             process.exitCode = 2;
@@ -84,7 +87,8 @@ if (argumentsList[0] === "--version") {
             argumentsList.includes("--ignore-user-config") &&
             argumentsList.includes("--ignore-rules") &&
             argumentsList[argumentsList.indexOf("--sandbox") + 1] === "workspace-write" &&
-            argumentsList[argumentsList.indexOf("--ask-for-approval") + 1] === "never" &&
+            !argumentsList.includes("--ask-for-approval") &&
+            windowsSandboxIsValid &&
             argumentsList.some(function (argument) {
                 return argument.endsWith("codexTaskExecutionOutput.schema.json");
             }) &&

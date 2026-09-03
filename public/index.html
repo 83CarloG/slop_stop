@@ -261,6 +261,15 @@
                     <button id="request-task-execution-proposal" type="button" class="secondary-action">Request Codex execution proposal</button>
                     <div id="task-execution-proposals"></div>
 
+                    <h4>Isolated implementation candidates</h4>
+                    <p class="hint">Codex writes only inside a disposable clone of the current commit. The resulting patch is evidence for human review and is never applied, committed, or verified by AI.</p>
+
+                    <label for="task-execution-note">Execution authorization note</label>
+                    <input id="task-execution-note" maxlength="500">
+
+                    <button id="create-task-execution-candidate" type="button" class="secondary-action">Create implementation candidate</button>
+                    <div id="task-executions"></div>
+
                     <h4>Versions</h4>
                     <ol id="task-versions"></ol>
                 </article>

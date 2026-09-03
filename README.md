@@ -31,9 +31,9 @@ npm run test-data:reset
 npm run start:test
 ```
 
-Open `http://127.0.0.1:3001`. The seeded task is approved and its latest readiness result is `allow`, so it is ready for the explicitly confirmed Codex execution proposal.
+Open `http://127.0.0.1:3001`. The seeded task is approved and its latest readiness result is `allow`. Request the read-only Codex proposal first, then explicitly authorize an isolated implementation candidate.
 
-The test launcher pins `.data/test/events.jsonl` even if the shell or `.env` defines another store. `test-data:clean` deletes only the test file; it never touches the default `.data/events.jsonl`. Stop the test server before cleaning or resetting its data.
+The test launcher pins `.data/test/events.jsonl` even if the shell or `.env` defines another store. `test-data:clean` deletes the test event file and its test-only patch artifacts; it never touches the default `.data/events.jsonl`. Stop the test server before cleaning or resetting its data.
 
 ## API contract
 
@@ -73,7 +73,11 @@ The first deterministic readiness check evaluates the exact approved functional 
 
 After an `allow` result, an explicitly confirmed UI action can ask Codex for a structured execution proposal. Codex receives only the normalized approved chain, runs from an isolated temporary directory with a read-only sandbox, and is instructed not to inspect or modify the repository. The proposal records suggested paths, validation steps, and risks; it cannot change task state or claim completion.
 
-Task execution, results, and completion remain later milestones. Neither the readiness check nor the proposal executes commands in the project workspace.
+After a current proposal exists, a human can authorize Codex to create an implementation candidate. Codex receives `workspace-write` only inside a disposable clone of the current Git `HEAD`. The application derives the changed-file list and binary-capable patch from Git, stores the patch under the ignored local data directory, and verifies its SHA-256 digest whenever it is opened.
+
+Native Windows execution explicitly selects the recommended [elevated Windows sandbox](https://learn.chatgpt.com/docs/windows/windows-sandbox) because isolated runs ignore user configuration.
+
+The candidate is review evidence only. It is never applied, committed, pushed, approved, independently verified, or marked complete by this milestone. The source repository does not receive Codex changes.
 
 ## Codex review proposals
 
@@ -107,4 +111,4 @@ The real Codex smoke test is optional and is never run by the regular test suite
 
 ## Current limits
 
-Identity is declared through a display name and is not authenticated. There is no task execution lifecycle, database, deployment configuration, multi-provider abstraction, automatic code modification, or AI approval authority. Codex execution proposals are advisory evidence only.
+Identity is declared through a display name and is not authenticated. There is no patch application, independent candidate verification, completion transition, crash recovery, concurrent-execution coordination, database, deployment configuration, multi-provider abstraction, or AI approval authority. Codex proposals and isolated candidates are review evidence only.
