@@ -48,7 +48,9 @@ Technical requirements use the same versioned human-review lifecycle. The UI sup
 
 ## Task drafts
 
-An approved technical requirement can originate multiple versioned task drafts. Each task contains a title, objective, and acceptance criteria while preserving the immutable technical requirement ID and approved version.
+An approved technical requirement can originate multiple versioned tasks. Each task contains a title, objective, and acceptance criteria while preserving the immutable technical requirement ID and approved version.
+
+Tasks use the human lifecycle `draft → in_review → approved | rejected`. A rejected task can return to draft through a new immutable revision; an approved task version cannot change.
 
 Each task exposes a read-only process trace with the exact functional and technical origins plus one normalized chronological timeline. Raw event payloads and Codex internals are not exposed.
 

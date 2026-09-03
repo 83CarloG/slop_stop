@@ -4,6 +4,7 @@ const applicationStatus = document.querySelector("#application-status");
 const actorNameInput = document.querySelector("#actor-name");
 const aiReviewList = document.querySelector("#ai-review-list");
 const approveRequirementButton = document.querySelector("#approve-requirement");
+const approveTaskButton = document.querySelector("#approve-task");
 const codexStatus = document.querySelector("#codex-status");
 const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
@@ -14,6 +15,7 @@ const processDetail = document.querySelector("#process-detail");
 const processEmpty = document.querySelector("#process-empty");
 const processTraceTimeline = document.querySelector("#process-trace-timeline");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
+const rejectTaskButton = document.querySelector("#reject-task");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
 const requirementDetail = document.querySelector("#requirement-detail");
 const requirementDetailSource = document.querySelector("#requirement-detail-source");
@@ -32,6 +34,7 @@ const revisionNoteInput = document.querySelector("#revision-note");
 const revisionStatementInput = document.querySelector("#revision-statement");
 const revisionTitleInput = document.querySelector("#revision-title");
 const submitRequirementButton = document.querySelector("#submit-requirement");
+const submitTaskButton = document.querySelector("#submit-task");
 const approveTechnicalRequirementButton = document.querySelector("#approve-technical-requirement");
 const rejectTechnicalRequirementButton = document.querySelector("#reject-technical-requirement");
 const reviseTechnicalRequirementButton = document.querySelector("#revise-technical-requirement");
@@ -180,7 +183,9 @@ function createTimelineText(event) {
         functional_requirement_revised: "Revision created",
         functional_requirement_review_submitted: "Submitted for review",
         task_created: "Task draft created",
+        task_decided: "Task decision recorded",
         task_revised: "Task revision created",
+        task_review_submitted: "Task submitted for review",
         technical_requirement_created: "Technical draft created",
         technical_requirement_decided: "Technical decision recorded",
         technical_requirement_revised: "Technical revision created",
@@ -589,6 +594,11 @@ function renderTask(task) {
     taskRevisionCriteriaInput.value = currentVersion.acceptanceCriteria.join("\n");
     taskRevisionNoteInput.value = "";
 
+    reviseTaskButton.disabled = task.status !== "draft" && task.status !== "rejected";
+    submitTaskButton.disabled = task.status !== "draft";
+    approveTaskButton.disabled = task.status !== "in_review";
+    rejectTaskButton.disabled = task.status !== "in_review";
+
     taskVersions.replaceChildren();
     for (const version of task.versions) {
         const item = document.createElement("li");
@@ -789,10 +799,16 @@ async function performTechnicalRequirementAction(url, createPayload, confirmatio
     }
 }
 
-async function performTaskAction(url, createPayload) {
+async function performTaskAction(url, createPayload, confirmationMessage) {
     try {
+        const payload = createPayload();
+
+        if (confirmationMessage && !window.confirm(confirmationMessage)) {
+            return;
+        }
+
         const task = await requestJson(url, {
-            body: JSON.stringify(createPayload()),
+            body: JSON.stringify(payload),
             headers: {"content-type": "application/json"},
             method: "POST"
         });
@@ -1115,6 +1131,46 @@ reviseTaskButton.addEventListener("click", async function () {
             title: taskRevisionTitleInput.value
         };
     });
+});
+
+submitTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/review`, function () {
+        return {
+            actorName: getActorName()
+        };
+    }, "Submit this task draft for human review?");
+});
+
+approveTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/decisions`, function () {
+        return {
+            actorName: getActorName(),
+            decision: "approved",
+            note: taskRevisionNoteInput.value
+        };
+    }, "Approve this immutable task version?");
+});
+
+rejectTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/decisions`, function () {
+        return {
+            actorName: getActorName(),
+            decision: "rejected",
+            note: taskRevisionNoteInput.value
+        };
+    }, "Reject this task version?");
 });
 
 taskOriginLink.addEventListener("click", async function () {

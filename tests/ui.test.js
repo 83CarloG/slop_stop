@@ -43,6 +43,9 @@ test("the hierarchy is shared and the process panel remains read-only", function
     assert.equal(processPanel.includes("<form"), false);
     assert.equal(processPanel.includes("<input"), false);
     assert.equal(processPanel.includes("<textarea"), false);
+    assert.match(html, /id="submit-task"/u);
+    assert.match(html, /id="approve-task"/u);
+    assert.match(html, /id="reject-task"/u);
     assert.equal(client.includes("functionalRequirementId === functionalRequirement.id"), true);
     assert.equal(client.includes("task.technicalRequirementId === technicalRequirement.id"), true);
 });
