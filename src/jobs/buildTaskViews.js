@@ -27,6 +27,41 @@ function createVersion(event) {
     };
 }
 
+function readinessCheckIsValid(event, task) {
+    const payload = event.payload;
+    const expectedRuleIds = [
+        "task_version_approved",
+        "technical_origin_approved",
+        "functional_origin_approved"
+    ];
+    const rulesAreValid = Array.isArray(payload.rules) &&
+        payload.rules.length === expectedRuleIds.length &&
+        payload.rules.every(function (rule, index) {
+            return rule &&
+                Object.keys(rule).sort().join(",") === "ruleId,status" &&
+                rule.ruleId === expectedRuleIds[index] &&
+                (rule.status === "passed" || rule.status === "failed");
+        });
+    const derivedStatus = rulesAreValid && payload.rules.every(function (rule) {
+        return rule.status === "passed";
+    }) ? "passed" : "failed";
+    const expectedTaskRuleStatus = task.status === "approved" &&
+        task.approvedVersion === task.currentVersion ? "passed" : "failed";
+
+    return event.actor.kind === "system" &&
+        event.actor.name === "readiness-check" &&
+        Object.keys(payload).sort().join(",") === "checkId,consequence,rules,status,taskId,version" &&
+        payload.checkId === "approved_chain" &&
+        payload.taskId === task.id &&
+        payload.version === task.currentVersion &&
+        rulesAreValid &&
+        payload.rules[0].status === expectedTaskRuleStatus &&
+        payload.rules[1].status === "passed" &&
+        payload.rules[2].status === "passed" &&
+        payload.status === derivedStatus &&
+        payload.consequence === (derivedStatus === "passed" ? "allow" : "stop");
+}
+
 module.exports = function buildTaskViews(events) {
     const views = new Map();
 
@@ -52,6 +87,7 @@ module.exports = function buildTaskViews(events) {
 
             views.set(taskId, {
                 approvedVersion: null,
+                checks: [],
                 createdAt: event.occurredAt,
                 currentVersion: 1,
                 decision: null,
@@ -116,6 +152,23 @@ module.exports = function buildTaskViews(events) {
                 note: event.payload.note,
                 value: event.payload.decision
             };
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_check_evaluated") {
+            if (!readinessCheckIsValid(event, existing)) {
+                throw createCorruptionError();
+            }
+
+            existing.checks.push({
+                actor: event.actor,
+                checkId: event.payload.checkId,
+                checkedAt: event.occurredAt,
+                consequence: event.payload.consequence,
+                rules: event.payload.rules.map(function (rule) {
+                    return {...rule};
+                }),
+                status: event.payload.status,
+                version: event.payload.version
+            });
             existing.updatedAt = event.occurredAt;
         } else {
             throw createCorruptionError();

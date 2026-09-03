@@ -13,6 +13,7 @@ const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "s
 const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
+const evaluateTaskReadiness = require(path.resolve(process.cwd(), "src", "services", "evaluateTaskReadiness.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
 const listTasks = require(path.resolve(process.cwd(), "src", "services", "listTasks.js"));
 const listTechnicalRequirements = require(path.resolve(process.cwd(), "src", "services", "listTechnicalRequirements.js"));
@@ -205,6 +206,87 @@ test("task review and approval preserve an immutable human decision", async func
             return event.eventType;
         }), ["task_review_submitted", "task_decided"]);
         assert.equal(events.at(-1).payload.taskId, task.id);
+    });
+});
+
+test("the approved-chain check stops a draft and allows its approved version", async function () {
+    await withEventStore(async function (storePath) {
+        const {technicalRequirement} = await createApprovedTechnicalRequirement();
+        const task = await createTask({
+            acceptanceCriteria: ["The deterministic chain check records an explicit consequence."],
+            actorName: "Author",
+            objective: "Prove that task readiness does not depend on an AI judgment.",
+            technicalRequirementId: technicalRequirement.id,
+            title: "Evaluate approved chain"
+        });
+        const stopped = await evaluateTaskReadiness({taskId: task.id});
+
+        assert.equal(stopped.checks.length, 1);
+        assert.equal(stopped.checks[0].status, "failed");
+        assert.equal(stopped.checks[0].consequence, "stop");
+        assert.equal(stopped.checks[0].rules[0].status, "failed");
+        assert.equal(stopped.checks[0].rules[1].status, "passed");
+        assert.equal(stopped.checks[0].rules[2].status, "passed");
+
+        await submitTaskReview({actorName: "Reviewer", taskId: task.id});
+        await decideTask({
+            actorName: "Reviewer",
+            decision: "approved",
+            note: "The task is ready for deterministic evaluation.",
+            taskId: task.id
+        });
+        const allowed = await evaluateTaskReadiness({taskId: task.id});
+        const latestCheck = allowed.checks.at(-1);
+
+        assert.equal(latestCheck.status, "passed");
+        assert.equal(latestCheck.consequence, "allow");
+        assert.equal(latestCheck.actor.kind, "system");
+        assert.equal(latestCheck.actor.name, "readiness-check");
+        assert.equal(latestCheck.version, 1);
+        assert.deepEqual(latestCheck.rules.map(function (rule) {
+            return rule.status;
+        }), ["passed", "passed", "passed"]);
+
+        const events = fs.readFileSync(storePath, "utf8").trim().split("\n").map(JSON.parse);
+        assert.equal(events.filter(function (event) {
+            return event.eventType === "task_check_evaluated";
+        }).length, 2);
+    });
+});
+
+test("a forged readiness result corrupts the task history", async function () {
+    await withEventStore(async function (storePath) {
+        const {technicalRequirement} = await createApprovedTechnicalRequirement();
+        const task = await createTask({
+            acceptanceCriteria: ["Stored readiness evidence is replayed deterministically."],
+            actorName: "Author",
+            objective: "Reject a false allow result for a draft task.",
+            technicalRequirementId: technicalRequirement.id,
+            title: "Validate readiness evidence"
+        });
+
+        fs.appendFileSync(storePath, `${JSON.stringify({
+            actor: {kind: "system", name: "readiness-check"},
+            eventId: "forged-readiness-event",
+            eventType: "task_check_evaluated",
+            occurredAt: "2026-09-03T01:00:00.000Z",
+            payload: {
+                checkId: "approved_chain",
+                consequence: "allow",
+                rules: [
+                    {ruleId: "task_version_approved", status: "passed"},
+                    {ruleId: "technical_origin_approved", status: "passed"},
+                    {ruleId: "functional_origin_approved", status: "passed"}
+                ],
+                status: "passed",
+                taskId: task.id,
+                version: task.currentVersion
+            },
+            requirementId: technicalRequirement.id,
+            schemaVersion: 1
+        })}\n`, "utf8");
+
+        await assert.rejects(listTasks(), assertCode("STORE_CORRUPTED"));
     });
 });
 
