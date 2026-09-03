@@ -52,7 +52,7 @@ module.exports = function buildFunctionalRequirementViews(events) {
     const views = new Map();
 
     for (const event of events) {
-        if (event.eventType.startsWith("technical_requirement_")) {
+        if (event.eventType.startsWith("technical_requirement_") || event.eventType.startsWith("task_")) {
             continue;
         }
 

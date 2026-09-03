@@ -17,10 +17,13 @@ if (argumentsList[0] === "--version") {
     });
     process.stdin.on("end", function () {
         const promptLeakedToArguments = argumentsList.some(function (argument) {
-            return argument.includes("readiness response") || argument.includes("functional requirement");
+            return argument.includes("readiness response") ||
+                argument.includes("functional requirement") ||
+                argument.includes("approved task");
         });
 
         const isRequirementReview = input.includes("Review one functional requirement");
+        const isTaskExecutionProposal = input.includes("Propose an implementation approach for one approved task");
 
         if (promptLeakedToArguments || (isRequirementReview && process.env.OPENAI_API_KEY)) {
             process.exitCode = 2;
@@ -43,6 +46,31 @@ if (argumentsList[0] === "--version") {
                     title: "Export requirement evidence"
                 },
                 summary: "The intent is clear, but the result needs a format and evidence boundary."
+            };
+        } else if (
+            isTaskExecutionProposal &&
+            input.includes('"functionalRequirement"') &&
+            input.includes('"technicalRequirement"') &&
+            input.includes('"task"') &&
+            argumentsList.includes("--skip-git-repo-check") &&
+            argumentsList.includes("--ephemeral") &&
+            argumentsList.includes("--ignore-user-config") &&
+            argumentsList.includes("--ignore-rules") &&
+            argumentsList[argumentsList.indexOf("--sandbox") + 1] === "read-only" &&
+            argumentsList.some(function (argument) {
+                return argument.endsWith("codexTaskExecutionProposalOutput.schema.json");
+            }) &&
+            process.cwd().includes("slop-stop-codex-proposal-") &&
+            !process.env.OPENAI_API_KEY
+        ) {
+            output = {
+                proposedChanges: [{
+                    description: "Add the bounded export service and its deterministic tests.",
+                    path: "src/services/exportEvidence.js"
+                }],
+                risks: ["Exported evidence may expose fields outside the normalized contract."],
+                summary: "Implement a normalized evidence export behind the existing service boundary.",
+                validationSteps: ["Run the deterministic unit and architecture test suites."]
             };
         } else {
             process.exitCode = 2;

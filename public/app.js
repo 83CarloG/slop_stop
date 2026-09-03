@@ -4,19 +4,27 @@ const applicationStatus = document.querySelector("#application-status");
 const actorNameInput = document.querySelector("#actor-name");
 const aiReviewList = document.querySelector("#ai-review-list");
 const approveRequirementButton = document.querySelector("#approve-requirement");
+const approveTaskButton = document.querySelector("#approve-task");
 const codexStatus = document.querySelector("#codex-status");
 const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
+const derivedTaskList = document.querySelector("#derived-task-list");
 const derivedTechnicalList = document.querySelector("#derived-technical-list");
+const documentTree = document.querySelector("#document-tree");
+const processDetail = document.querySelector("#process-detail");
+const processEmpty = document.querySelector("#process-empty");
+const processTraceTimeline = document.querySelector("#process-trace-timeline");
 const rejectRequirementButton = document.querySelector("#reject-requirement");
+const rejectTaskButton = document.querySelector("#reject-task");
+const runTaskReadinessCheckButton = document.querySelector("#run-task-readiness-check");
 const requestAiReviewButton = document.querySelector("#request-ai-review");
+const requestTaskExecutionProposalButton = document.querySelector("#request-task-execution-proposal");
 const requirementDetail = document.querySelector("#requirement-detail");
 const requirementDetailSource = document.querySelector("#requirement-detail-source");
 const requirementDetailStatus = document.querySelector("#requirement-detail-status");
 const requirementDetailTitle = document.querySelector("#requirement-detail-title");
 const requirementDetailVersion = document.querySelector("#requirement-detail-version");
 const requirementForm = document.querySelector("#requirement-form");
-const requirementList = document.querySelector("#requirement-list");
 const requirementMessage = document.querySelector("#requirement-message");
 const requirementSourceInput = document.querySelector("#requirement-source");
 const requirementStatementInput = document.querySelector("#requirement-statement");
@@ -28,6 +36,7 @@ const revisionNoteInput = document.querySelector("#revision-note");
 const revisionStatementInput = document.querySelector("#revision-statement");
 const revisionTitleInput = document.querySelector("#revision-title");
 const submitRequirementButton = document.querySelector("#submit-requirement");
+const submitTaskButton = document.querySelector("#submit-task");
 const approveTechnicalRequirementButton = document.querySelector("#approve-technical-requirement");
 const rejectTechnicalRequirementButton = document.querySelector("#reject-technical-requirement");
 const reviseTechnicalRequirementButton = document.querySelector("#revise-technical-requirement");
@@ -37,7 +46,6 @@ const technicalDetailStatus = document.querySelector("#technical-detail-status")
 const technicalDetailTitle = document.querySelector("#technical-detail-title");
 const technicalDetailVersion = document.querySelector("#technical-detail-version");
 const technicalForm = document.querySelector("#technical-requirement-form");
-const technicalList = document.querySelector("#technical-list");
 const technicalMessage = document.querySelector("#technical-message");
 const technicalOriginInput = document.querySelector("#technical-origin");
 const technicalOriginLink = document.querySelector("#technical-origin-link");
@@ -48,13 +56,46 @@ const technicalStatementInput = document.querySelector("#technical-statement");
 const technicalTimeline = document.querySelector("#technical-timeline");
 const technicalTitleInput = document.querySelector("#technical-title");
 const technicalVersions = document.querySelector("#technical-versions");
+const reviseTaskButton = document.querySelector("#revise-task");
+const taskCriteriaInput = document.querySelector("#task-criteria");
+const taskDetail = document.querySelector("#task-detail");
+const taskDetailStatus = document.querySelector("#task-detail-status");
+const taskDetailTitle = document.querySelector("#task-detail-title");
+const taskDetailVersion = document.querySelector("#task-detail-version");
+const taskExecutionProposals = document.querySelector("#task-execution-proposals");
+const taskForm = document.querySelector("#task-form");
+const taskMessage = document.querySelector("#task-message");
+const taskObjectiveInput = document.querySelector("#task-objective");
+const taskOriginInput = document.querySelector("#task-origin");
+const taskOriginLink = document.querySelector("#task-origin-link");
+const taskRevisionCriteriaInput = document.querySelector("#task-revision-criteria");
+const taskRevisionNoteInput = document.querySelector("#task-revision-note");
+const taskRevisionObjectiveInput = document.querySelector("#task-revision-objective");
+const taskRevisionTitleInput = document.querySelector("#task-revision-title");
+const taskReadinessRules = document.querySelector("#task-readiness-rules");
+const taskReadinessSummary = document.querySelector("#task-readiness-summary");
+const taskTitleInput = document.querySelector("#task-title");
+const taskVersions = document.querySelector("#task-versions");
+const traceFunctionalLink = document.querySelector("#trace-functional-link");
+const traceTaskCurrent = document.querySelector("#trace-task-current");
+const traceTechnicalLink = document.querySelector("#trace-technical-link");
+const viewProcessButton = document.querySelector("#view-process");
+const workspacePanels = Array.from(document.querySelectorAll("[data-panel]"));
+const workspaceTabs = Array.from(document.querySelectorAll("[role=tab][data-tab]"));
 
 let selectedRequirementId = null;
 let selectedRequirement = null;
 let selectedTechnicalRequirementId = null;
 let selectedTechnicalRequirement = null;
+let selectedTaskId = null;
+let selectedTask = null;
+let selectedTaskTrace = null;
 let functionalRequirements = [];
+let technicalRequirements = [];
+let tasks = [];
+let activeDocument = null;
 let codexReady = false;
+const collapsedTreeNodes = new Set();
 
 async function readJson(response) {
     const data = await response.json();
@@ -97,20 +138,85 @@ async function requestJson(url, options = {}) {
     return await readJson(response);
 }
 
+function activateTab(tabName, focusTab = false) {
+    for (const tab of workspaceTabs) {
+        const isActive = tab.dataset.tab === tabName;
+        tab.setAttribute("aria-selected", String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+
+        if (isActive && focusTab) {
+            tab.focus();
+        }
+    }
+
+    for (const panel of workspacePanels) {
+        panel.hidden = panel.dataset.panel !== tabName;
+    }
+}
+
+function moveTabFocus(currentTab, key) {
+    const currentIndex = workspaceTabs.indexOf(currentTab);
+    let nextIndex = currentIndex;
+
+    if (key === "ArrowRight") {
+        nextIndex = (currentIndex + 1) % workspaceTabs.length;
+    } else if (key === "ArrowLeft") {
+        nextIndex = (currentIndex - 1 + workspaceTabs.length) % workspaceTabs.length;
+    } else if (key === "Home") {
+        nextIndex = 0;
+    } else if (key === "End") {
+        nextIndex = workspaceTabs.length - 1;
+    } else {
+        return;
+    }
+
+    workspaceTabs[nextIndex].focus();
+}
+
+function parseAcceptanceCriteria(value) {
+    return value.split(/\r?\n/u).map(function (item) {
+        return item.trim();
+    }).filter(function (item) {
+        return item !== "";
+    });
+}
+
 function createTimelineText(event) {
     const labels = {
         functional_requirement_created: "Draft created",
         functional_requirement_decided: "Human decision recorded",
         functional_requirement_revised: "Revision created",
         functional_requirement_review_submitted: "Submitted for review",
+        task_created: "Task draft created",
+        task_check_evaluated: "Task readiness check evaluated",
+        task_decided: "Task decision recorded",
+        task_execution_proposed: "Codex execution proposal recorded",
+        task_revised: "Task revision created",
+        task_review_submitted: "Task submitted for review",
         technical_requirement_created: "Technical draft created",
         technical_requirement_decided: "Technical decision recorded",
         technical_requirement_revised: "Technical revision created",
         technical_requirement_review_submitted: "Technical requirement submitted for review",
         ai_review_proposed: "Codex review proposed"
     };
+    const result = event.result ? ` — ${event.result.status} · ${event.result.consequence.replace(/_/gu, " ")}` : "";
     const note = event.note ? ` — ${event.note}` : "";
-    return `${labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${note}`;
+    return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${result}${note}`;
+}
+
+function updateCodexActionState() {
+    const latestCheck = selectedTask ? selectedTask.checks.at(-1) : null;
+
+    requestAiReviewButton.disabled = !selectedRequirement ||
+        selectedRequirement.status !== "draft" ||
+        !codexReady;
+    requestTaskExecutionProposalButton.disabled = !selectedTask ||
+        !codexReady ||
+        selectedTask.status !== "approved" ||
+        !latestCheck ||
+        latestCheck.version !== selectedTask.currentVersion ||
+        latestCheck.status !== "passed" ||
+        latestCheck.consequence !== "allow";
 }
 
 function renderRequirement(requirement) {
@@ -132,7 +238,7 @@ function renderRequirement(requirement) {
     submitRequirementButton.disabled = requirement.status !== "draft";
     approveRequirementButton.disabled = requirement.status !== "in_review";
     rejectRequirementButton.disabled = requirement.status !== "in_review";
-    requestAiReviewButton.disabled = requirement.status !== "draft" || !codexReady;
+    updateCodexActionState();
 
     aiReviewList.replaceChildren();
     for (const proposal of requirement.aiReviews) {
@@ -199,6 +305,193 @@ function createRequirementListButton(requirement, clickHandler) {
     return button;
 }
 
+function getActiveDocumentPath() {
+    if (!activeDocument) {
+        return [];
+    }
+
+    if (activeDocument.type === "functional") {
+        return [{id: activeDocument.id, type: "functional"}];
+    }
+
+    if (activeDocument.type === "technical") {
+        const technicalRequirement = technicalRequirements.find(function (item) {
+            return item.id === activeDocument.id;
+        });
+
+        return technicalRequirement ? [
+            {id: technicalRequirement.functionalRequirementId, type: "functional"},
+            {id: technicalRequirement.id, type: "technical"}
+        ] : [];
+    }
+
+    const task = tasks.find(function (item) {
+        return item.id === activeDocument.id;
+    });
+    const technicalRequirement = task && technicalRequirements.find(function (item) {
+        return item.id === task.technicalRequirementId;
+    });
+
+    return task && technicalRequirement ? [
+        {id: technicalRequirement.functionalRequirementId, type: "functional"},
+        {id: technicalRequirement.id, type: "technical"},
+        {id: task.id, type: "task"}
+    ] : [];
+}
+
+function setActiveDocument(type, id) {
+    activeDocument = {id, type};
+
+    for (const item of getActiveDocumentPath()) {
+        collapsedTreeNodes.delete(`${item.type}:${item.id}`);
+    }
+}
+
+async function openDocument(type, id) {
+    const panelByType = {
+        functional: "functional",
+        task: "tasks",
+        technical: "technical"
+    };
+    const messageByType = {
+        functional: requirementMessage,
+        task: taskMessage,
+        technical: technicalMessage
+    };
+
+    activateTab(panelByType[type]);
+
+    try {
+        if (type === "functional") {
+            await loadRequirement(id);
+        } else if (type === "technical") {
+            await loadTechnicalRequirement(id);
+        } else {
+            await loadTask(id);
+        }
+
+        messageByType[type].textContent = "";
+        document.querySelector(`[data-panel="${panelByType[type]}"]`).focus();
+    } catch (error) {
+        messageByType[type].textContent = error.message;
+    }
+}
+
+function createTreeNode(documentItem, type, children) {
+    const item = document.createElement("li");
+    const row = document.createElement("div");
+    const collapseKey = `${type}:${documentItem.id}`;
+    const activePath = getActiveDocumentPath();
+    const isCurrent = activeDocument && activeDocument.type === type && activeDocument.id === documentItem.id;
+    const isInActivePath = activePath.some(function (pathItem) {
+        return pathItem.type === type && pathItem.id === documentItem.id;
+    });
+
+    item.className = `tree-node tree-node-${type}`;
+    row.className = "tree-row";
+
+    if (children.length > 0) {
+        const toggle = document.createElement("button");
+        const childList = document.createElement("ul");
+        const isExpanded = !collapsedTreeNodes.has(collapseKey);
+
+        toggle.type = "button";
+        toggle.className = "tree-toggle";
+        toggle.setAttribute("aria-expanded", String(isExpanded));
+        toggle.setAttribute("aria-label", `${isExpanded ? "Collapse" : "Expand"} children of ${documentItem.title}`);
+        toggle.textContent = isExpanded ? "▾" : "▸";
+        childList.id = `tree-children-${type}-${documentItem.id}`;
+        childList.className = "tree-children";
+        childList.hidden = !isExpanded;
+        toggle.setAttribute("aria-controls", childList.id);
+
+        for (const child of children) {
+            childList.append(child);
+        }
+
+        toggle.addEventListener("click", function () {
+            const expanded = toggle.getAttribute("aria-expanded") === "true";
+            toggle.setAttribute("aria-expanded", String(!expanded));
+            toggle.setAttribute("aria-label", `${expanded ? "Expand" : "Collapse"} children of ${documentItem.title}`);
+            toggle.textContent = expanded ? "▸" : "▾";
+            childList.hidden = expanded;
+
+            if (expanded) {
+                collapsedTreeNodes.add(collapseKey);
+            } else {
+                collapsedTreeNodes.delete(collapseKey);
+            }
+        });
+
+        row.append(toggle);
+        item.append(row, childList);
+    } else {
+        const spacer = document.createElement("span");
+        spacer.className = "tree-toggle-spacer";
+        spacer.setAttribute("aria-hidden", "true");
+        row.append(spacer);
+        item.append(row);
+    }
+
+    const button = document.createElement("button");
+    const title = document.createElement("span");
+    const metadata = document.createElement("span");
+
+    button.type = "button";
+    button.className = "tree-document";
+    button.dataset.documentId = documentItem.id;
+    button.dataset.documentType = type;
+    button.setAttribute("aria-current", isCurrent ? "page" : "false");
+    button.setAttribute("aria-label", `${type} document ${documentItem.title}, ${documentItem.status}, version ${documentItem.currentVersion}`);
+    title.className = "tree-document-title";
+    title.textContent = documentItem.title;
+    metadata.className = `tree-document-meta status-${documentItem.status}`;
+    metadata.textContent = `${documentItem.status} · v${documentItem.currentVersion}`;
+    button.append(title, metadata);
+    button.addEventListener("click", async function () {
+        await openDocument(type, documentItem.id);
+    });
+
+    if (isInActivePath) {
+        item.classList.add(isCurrent ? "is-current" : "is-ancestor");
+    }
+
+    row.append(button);
+    return item;
+}
+
+function renderDocumentTree() {
+    const root = document.createElement("ul");
+    root.className = "document-tree-list";
+    documentTree.replaceChildren();
+
+    if (functionalRequirements.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.textContent = "No documents yet.";
+        documentTree.append(empty);
+        return;
+    }
+
+    for (const functionalRequirement of functionalRequirements) {
+        const technicalNodes = technicalRequirements.filter(function (technicalRequirement) {
+            return technicalRequirement.functionalRequirementId === functionalRequirement.id;
+        }).map(function (technicalRequirement) {
+            const taskNodes = tasks.filter(function (task) {
+                return task.technicalRequirementId === technicalRequirement.id;
+            }).map(function (task) {
+                return createTreeNode(task, "task", []);
+            });
+
+            return createTreeNode(technicalRequirement, "technical", taskNodes);
+        });
+
+        root.append(createTreeNode(functionalRequirement, "functional", technicalNodes));
+    }
+
+    documentTree.append(root);
+}
+
 async function loadDerivedTechnicalRequirements(functionalRequirementId) {
     const result = await requestJson(`/api/technical-requirements?functionalRequirementId=${functionalRequirementId}`);
     derivedTechnicalList.replaceChildren();
@@ -214,6 +507,7 @@ async function loadDerivedTechnicalRequirements(functionalRequirementId) {
         const item = document.createElement("li");
         const button = createRequirementListButton(requirement, async function () {
             try {
+                activateTab("technical");
                 await loadTechnicalRequirement(requirement.id);
                 technicalMessage.textContent = "";
                 technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -268,7 +562,206 @@ function renderTechnicalRequirement(requirement) {
 async function loadTechnicalRequirement(requirementId) {
     const requirement = await requestJson(`/api/technical-requirements/${requirementId}`);
     selectedTechnicalRequirementId = requirement.id;
+    setActiveDocument("technical", requirement.id);
     renderTechnicalRequirement(requirement);
+    taskOriginInput.value = requirement.status === "approved" ? requirement.id : "";
+    await loadDerivedTasks(requirement.id);
+    renderDocumentTree();
+}
+
+async function loadDerivedTasks(technicalRequirementId) {
+    const result = await requestJson(`/api/tasks?technicalRequirementId=${technicalRequirementId}`);
+    derivedTaskList.replaceChildren();
+
+    if (result.items.length === 0) {
+        const emptyItem = document.createElement("li");
+        emptyItem.textContent = "No tasks derive from this technical requirement yet.";
+        derivedTaskList.append(emptyItem);
+        return;
+    }
+
+    for (const task of result.items) {
+        const item = document.createElement("li");
+        const button = createRequirementListButton(task, async function () {
+            try {
+                activateTab("tasks");
+                await loadTask(task.id);
+                taskMessage.textContent = "";
+                taskDetail.scrollIntoView({behavior: "smooth", block: "start"});
+            } catch (error) {
+                taskMessage.textContent = error.message;
+            }
+        });
+        item.append(button);
+        derivedTaskList.append(item);
+    }
+}
+
+function renderTask(task) {
+    const currentVersion = task.versions.find(function (version) {
+        return version.version === task.currentVersion;
+    });
+    const origin = technicalRequirements.find(function (item) {
+        return item.id === task.technicalRequirementId;
+    });
+    const originTitle = origin ? origin.title : task.technicalRequirementId;
+
+    selectedTask = task;
+    taskDetail.hidden = false;
+    taskDetailStatus.textContent = task.status.toUpperCase();
+    taskDetailTitle.textContent = task.title;
+    taskDetailVersion.textContent = `Version ${task.currentVersion}`;
+    taskOriginLink.textContent = `Technical origin: ${originTitle} — approved v${task.technicalRequirementVersion}`;
+    taskRevisionTitleInput.value = currentVersion.title;
+    taskRevisionObjectiveInput.value = currentVersion.objective;
+    taskRevisionCriteriaInput.value = currentVersion.acceptanceCriteria.join("\n");
+    taskRevisionNoteInput.value = "";
+
+    reviseTaskButton.disabled = task.status !== "draft" && task.status !== "rejected";
+    submitTaskButton.disabled = task.status !== "draft";
+    approveTaskButton.disabled = task.status !== "in_review";
+    rejectTaskButton.disabled = task.status !== "in_review";
+
+    taskReadinessRules.replaceChildren();
+    const latestCheck = task.checks.at(-1);
+
+    if (latestCheck) {
+        const consequence = latestCheck.consequence.replace(/_/gu, " ").toUpperCase();
+        taskReadinessSummary.textContent = `${latestCheck.checkId}: ${latestCheck.status.toUpperCase()} · ${consequence} — version ${latestCheck.version} at ${latestCheck.checkedAt}`;
+
+        for (const rule of latestCheck.rules) {
+            const item = document.createElement("li");
+            item.textContent = `${rule.ruleId}: ${rule.status}`;
+            taskReadinessRules.append(item);
+        }
+    } else {
+        taskReadinessSummary.textContent = "No readiness check recorded.";
+    }
+
+    updateCodexActionState();
+
+    taskExecutionProposals.replaceChildren();
+    for (const entry of task.executionProposals) {
+        const container = document.createElement("section");
+        const heading = document.createElement("h5");
+        const summary = document.createElement("p");
+        const changesHeading = document.createElement("strong");
+        const changes = document.createElement("ul");
+        const validationHeading = document.createElement("strong");
+        const validation = document.createElement("ul");
+        const risksHeading = document.createElement("strong");
+        const risks = document.createElement("ul");
+
+        container.className = "ai-review";
+        heading.textContent = `Version ${entry.version} proposal by ${entry.actor.name} at ${entry.createdAt}`;
+        summary.textContent = entry.proposal.summary;
+        changesHeading.textContent = "Proposed changes";
+        validationHeading.textContent = "Validation steps";
+        risksHeading.textContent = "Risks";
+
+        for (const change of entry.proposal.proposedChanges) {
+            const item = document.createElement("li");
+            item.textContent = `${change.path}: ${change.description}`;
+            changes.append(item);
+        }
+
+        for (const step of entry.proposal.validationSteps) {
+            const item = document.createElement("li");
+            item.textContent = step;
+            validation.append(item);
+        }
+
+        for (const risk of entry.proposal.risks) {
+            const item = document.createElement("li");
+            item.textContent = risk;
+            risks.append(item);
+        }
+
+        container.append(heading, summary, changesHeading, changes, validationHeading, validation, risksHeading, risks);
+        taskExecutionProposals.append(container);
+    }
+
+    taskVersions.replaceChildren();
+    for (const version of task.versions) {
+        const item = document.createElement("li");
+        const note = version.note ? ` — ${version.note}` : "";
+        item.textContent = `Version ${version.version}: ${version.title} — ${version.actor.name} at ${version.createdAt}${note}`;
+        taskVersions.append(item);
+    }
+}
+
+function renderTaskTrace(trace) {
+    selectedTaskTrace = trace;
+    processEmpty.hidden = true;
+    processDetail.hidden = false;
+    traceFunctionalLink.textContent = `Functional: ${trace.chain.functionalRequirement.title} — v${trace.chain.functionalRequirement.version}`;
+    traceTechnicalLink.textContent = `Technical: ${trace.chain.technicalRequirement.title} — v${trace.chain.technicalRequirement.version}`;
+    traceTaskCurrent.textContent = `Task: ${trace.chain.task.title} — v${trace.chain.task.version}`;
+
+    processTraceTimeline.replaceChildren();
+    for (const event of trace.timeline) {
+        const item = document.createElement("li");
+        item.textContent = createTimelineText(event);
+        processTraceTimeline.append(item);
+    }
+}
+
+async function loadTask(taskId) {
+    const [task, trace] = await Promise.all([
+        requestJson(`/api/tasks/${taskId}`),
+        requestJson(`/api/tasks/${taskId}/trace`)
+    ]);
+    selectedTaskId = task.id;
+    setActiveDocument("task", task.id);
+    renderTask(task);
+    renderTaskTrace(trace);
+    renderDocumentTree();
+}
+
+function renderTaskOriginOptions() {
+    const selectedValue = taskOriginInput.value;
+    taskOriginInput.replaceChildren();
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select an approved technical requirement";
+    taskOriginInput.append(placeholder);
+
+    for (const requirement of technicalRequirements.filter(function (item) {
+        return item.status === "approved";
+    })) {
+        const option = document.createElement("option");
+        option.value = requirement.id;
+        option.textContent = `${requirement.title} — approved v${requirement.approvedVersion}`;
+        taskOriginInput.append(option);
+    }
+
+    if (Array.from(taskOriginInput.options).some(function (option) {
+        return option.value === selectedValue;
+    })) {
+        taskOriginInput.value = selectedValue;
+    }
+}
+
+async function loadTasks() {
+    const result = await requestJson("/api/tasks");
+    tasks = result.items;
+
+    if (selectedTaskId) {
+        const selectedStillExists = result.items.some(function (task) {
+            return task.id === selectedTaskId;
+        });
+
+        if (selectedStillExists) {
+            await loadTask(selectedTaskId);
+        }
+    }
+
+    if (selectedTechnicalRequirementId) {
+        await loadDerivedTasks(selectedTechnicalRequirementId);
+    }
+
+    renderDocumentTree();
 }
 
 function renderTechnicalOriginOptions() {
@@ -298,21 +791,8 @@ function renderTechnicalOriginOptions() {
 
 async function loadTechnicalRequirements() {
     const result = await requestJson("/api/technical-requirements");
-    technicalList.replaceChildren();
-
-    for (const requirement of result.items) {
-        const item = document.createElement("li");
-        const button = createRequirementListButton(requirement, async function () {
-            try {
-                await loadTechnicalRequirement(requirement.id);
-                technicalMessage.textContent = "";
-            } catch (error) {
-                technicalMessage.textContent = error.message;
-            }
-        });
-        item.append(button);
-        technicalList.append(item);
-    }
+    technicalRequirements = result.items;
+    renderTaskOriginOptions();
 
     if (selectedTechnicalRequirementId) {
         const selectedStillExists = result.items.some(function (requirement) {
@@ -327,35 +807,24 @@ async function loadTechnicalRequirements() {
     if (selectedRequirementId) {
         await loadDerivedTechnicalRequirements(selectedRequirementId);
     }
+
+    renderDocumentTree();
 }
 
 async function loadRequirement(requirementId) {
     const requirement = await requestJson(`/api/functional-requirements/${requirementId}`);
     selectedRequirementId = requirement.id;
+    setActiveDocument("functional", requirement.id);
     renderRequirement(requirement);
     technicalOriginInput.value = requirement.status === "approved" ? requirement.id : "";
     await loadDerivedTechnicalRequirements(requirement.id);
+    renderDocumentTree();
 }
 
 async function loadRequirements() {
     const result = await requestJson("/api/functional-requirements");
     functionalRequirements = result.items;
-    requirementList.replaceChildren();
     renderTechnicalOriginOptions();
-
-    for (const requirement of result.items) {
-        const item = document.createElement("li");
-        const button = createRequirementListButton(requirement, async function () {
-            try {
-                await loadRequirement(requirement.id);
-                requirementMessage.textContent = "";
-            } catch (error) {
-                requirementMessage.textContent = error.message;
-            }
-        });
-        item.append(button);
-        requirementList.append(item);
-    }
 
     if (selectedRequirementId) {
         const selectedStillExists = result.items.some(function (requirement) {
@@ -366,6 +835,8 @@ async function loadRequirements() {
             await loadRequirement(selectedRequirementId);
         }
     }
+
+    renderDocumentTree();
 }
 
 async function performRequirementAction(url, createPayload, confirmationMessage) {
@@ -410,6 +881,27 @@ async function performTechnicalRequirementAction(url, createPayload, confirmatio
     }
 }
 
+async function performTaskAction(url, createPayload, confirmationMessage) {
+    try {
+        const payload = createPayload();
+
+        if (confirmationMessage && !window.confirm(confirmationMessage)) {
+            return;
+        }
+
+        const task = await requestJson(url, {
+            body: JSON.stringify(payload),
+            headers: {"content-type": "application/json"},
+            method: "POST"
+        });
+        selectedTaskId = task.id;
+        taskMessage.textContent = "Task updated.";
+        await loadTasks();
+    } catch (error) {
+        taskMessage.textContent = error.message;
+    }
+}
+
 async function loadStatus() {
     try {
         const healthResponse = await fetch("/health");
@@ -439,9 +931,7 @@ async function loadStatus() {
         codexStatus.textContent = "Codex status could not be checked.";
     }
 
-    if (selectedRequirement) {
-        requestAiReviewButton.disabled = selectedRequirement.status !== "draft" || !codexReady;
-    }
+    updateCodexActionState();
 }
 
 codexSmokeButton.addEventListener("click", async function () {
@@ -670,6 +1160,7 @@ technicalOriginLink.addEventListener("click", async function () {
     }
 
     try {
+        activateTab("functional");
         await loadRequirement(selectedTechnicalRequirement.functionalRequirementId);
         requirementMessage.textContent = "";
         requirementDetail.scrollIntoView({behavior: "smooth", block: "start"});
@@ -678,11 +1169,184 @@ technicalOriginLink.addEventListener("click", async function () {
     }
 });
 
+taskForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    try {
+        const task = await requestJson("/api/tasks", {
+            body: JSON.stringify({
+                acceptanceCriteria: parseAcceptanceCriteria(taskCriteriaInput.value),
+                actorName: getActorName(),
+                objective: taskObjectiveInput.value,
+                technicalRequirementId: taskOriginInput.value,
+                title: taskTitleInput.value
+            }),
+            headers: {"content-type": "application/json"},
+            method: "POST"
+        });
+
+        rememberActorName();
+        selectedTaskId = task.id;
+        const originId = taskOriginInput.value;
+        taskForm.reset();
+        taskOriginInput.value = originId;
+        taskMessage.textContent = "Task draft created.";
+        await loadTasks();
+    } catch (error) {
+        taskMessage.textContent = error.message;
+    }
+});
+
+reviseTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/revisions`, function () {
+        return {
+            acceptanceCriteria: parseAcceptanceCriteria(taskRevisionCriteriaInput.value),
+            actorName: getActorName(),
+            note: taskRevisionNoteInput.value,
+            objective: taskRevisionObjectiveInput.value,
+            title: taskRevisionTitleInput.value
+        };
+    });
+});
+
+submitTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/review`, function () {
+        return {
+            actorName: getActorName()
+        };
+    }, "Submit this task draft for human review?");
+});
+
+approveTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/decisions`, function () {
+        return {
+            actorName: getActorName(),
+            decision: "approved",
+            note: taskRevisionNoteInput.value
+        };
+    }, "Approve this immutable task version?");
+});
+
+rejectTaskButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/decisions`, function () {
+        return {
+            actorName: getActorName(),
+            decision: "rejected",
+            note: taskRevisionNoteInput.value
+        };
+    }, "Reject this task version?");
+});
+
+runTaskReadinessCheckButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/checks`, function () {
+        return {};
+    }, "Run the deterministic approved-chain readiness check?");
+});
+
+requestTaskExecutionProposalButton.addEventListener("click", async function () {
+    if (!selectedTaskId) {
+        return;
+    }
+
+    await performTaskAction(`/api/tasks/${selectedTaskId}/execution-proposals`, function () {
+        return {confirmed: true};
+    }, "Send the approved chain to Codex for a read-only execution proposal?");
+});
+
+taskOriginLink.addEventListener("click", async function () {
+    if (!selectedTask) {
+        return;
+    }
+
+    try {
+        activateTab("technical");
+        await loadTechnicalRequirement(selectedTask.technicalRequirementId);
+        technicalMessage.textContent = "";
+        technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
+    } catch (error) {
+        technicalMessage.textContent = error.message;
+    }
+});
+
+viewProcessButton.addEventListener("click", function () {
+    if (selectedTaskTrace) {
+        activateTab("process", true);
+    }
+});
+
+traceFunctionalLink.addEventListener("click", async function () {
+    if (!selectedTaskTrace) {
+        return;
+    }
+
+    try {
+        activateTab("functional");
+        await loadRequirement(selectedTaskTrace.chain.functionalRequirement.id);
+        requirementMessage.textContent = "";
+        requirementDetail.scrollIntoView({behavior: "smooth", block: "start"});
+    } catch (error) {
+        requirementMessage.textContent = error.message;
+    }
+});
+
+traceTechnicalLink.addEventListener("click", async function () {
+    if (!selectedTaskTrace) {
+        return;
+    }
+
+    try {
+        activateTab("technical");
+        await loadTechnicalRequirement(selectedTaskTrace.chain.technicalRequirement.id);
+        technicalMessage.textContent = "";
+        technicalDetail.scrollIntoView({behavior: "smooth", block: "start"});
+    } catch (error) {
+        technicalMessage.textContent = error.message;
+    }
+});
+
+for (const tab of workspaceTabs) {
+    tab.addEventListener("click", function () {
+        activateTab(tab.dataset.tab);
+    });
+    tab.addEventListener("keydown", function (event) {
+        if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+            event.preventDefault();
+            moveTabFocus(tab, event.key);
+        } else if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activateTab(tab.dataset.tab);
+        }
+    });
+}
+
 restoreActorName();
 loadStatus();
 loadRequirements().then(function () {
     return loadTechnicalRequirements();
+}).then(function () {
+    return loadTasks();
 }).catch(function (error) {
     requirementMessage.textContent = error.message;
     technicalMessage.textContent = error.message;
+    taskMessage.textContent = error.message;
 });

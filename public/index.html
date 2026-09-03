@@ -7,150 +7,287 @@
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <main>
-        <p class="eyebrow">M2 TRACEABILITY</p>
-        <h1>Slop Stop</h1>
-        <p class="intro">A governed link between functional intent and technical requirements.</p>
+    <header class="app-header">
+        <div class="brand">
+            <p class="eyebrow">M3.5 WORKSPACE</p>
+            <h1>Slop Stop</h1>
+            <p class="intro">A governed path from intent to implementation.</p>
+        </div>
 
-        <section aria-labelledby="actor-title">
-            <h2 id="actor-title">Human actor</h2>
-            <label for="actor-name">Display name</label>
-            <input id="actor-name" maxlength="80" autocomplete="name" placeholder="Enter your name">
-            <p class="hint">This asserted identity is recorded in requirement events. Authentication is not part of the current MVP.</p>
-        </section>
+        <div class="actor-control">
+            <label for="actor-name">Human actor</label>
+            <input id="actor-name" maxlength="80" autocomplete="name" placeholder="Enter your display name">
+        </div>
 
-        <section aria-labelledby="requirements-title">
-            <h2 id="requirements-title">Functional requirements</h2>
+        <details class="system-panel">
+            <summary>System</summary>
+            <div class="system-panel-content">
+                <div>
+                    <strong>Application</strong>
+                    <p id="application-status">Checking application status...</p>
+                </div>
+                <div>
+                    <strong>Codex provider</strong>
+                    <p id="codex-status">Checking Codex status...</p>
+                    <button id="codex-smoke" type="button" disabled>Run read-only smoke test</button>
+                    <pre id="codex-result" aria-live="polite"></pre>
+                </div>
+                <a href="/documentation/">Explore the OpenAPI contract</a>
+            </div>
+        </details>
+    </header>
 
-            <form id="requirement-form">
-                <label for="requirement-title">Title</label>
-                <input id="requirement-title" maxlength="120" required>
+    <main class="workspace-shell">
+        <aside class="document-sidebar">
+            <details id="document-navigator" open>
+                <summary>Documents</summary>
+                <nav id="document-tree" aria-label="Document hierarchy">
+                    <p class="hint">Loading documents...</p>
+                </nav>
+            </details>
+        </aside>
 
-                <label for="requirement-source">Origin</label>
-                <input id="requirement-source" maxlength="500" placeholder="User request, workshop, or source document" required>
+        <section class="workspace">
+            <div id="workspace-tabs" class="workspace-tabs" role="tablist" aria-label="Document work areas">
+                <button id="tab-functional" type="button" role="tab" aria-controls="panel-functional" aria-selected="true" tabindex="0" data-tab="functional">Functional</button>
+                <button id="tab-technical" type="button" role="tab" aria-controls="panel-technical" aria-selected="false" tabindex="-1" data-tab="technical">Technical</button>
+                <button id="tab-tasks" type="button" role="tab" aria-controls="panel-tasks" aria-selected="false" tabindex="-1" data-tab="tasks">Tasks</button>
+                <button id="tab-process" type="button" role="tab" aria-controls="panel-process" aria-selected="false" tabindex="-1" data-tab="process">Process</button>
+            </div>
 
-                <label for="requirement-statement">Requirement statement</label>
-                <textarea id="requirement-statement" maxlength="4000" rows="5" required></textarea>
-
-                <button type="submit">Create draft</button>
-            </form>
-
-            <p id="requirement-message" class="message" aria-live="polite"></p>
-            <ul id="requirement-list" class="requirement-list"></ul>
-
-            <article id="requirement-detail" hidden>
-                <div class="detail-heading">
+            <section id="panel-functional" class="workspace-panel" role="tabpanel" aria-labelledby="tab-functional" tabindex="0" data-panel="functional">
+                <div class="panel-heading">
                     <div>
-                        <p id="requirement-detail-status" class="eyebrow"></p>
-                        <h3 id="requirement-detail-title"></h3>
+                        <p class="eyebrow">BUSINESS INTENT</p>
+                        <h2 id="requirements-title">Functional requirements</h2>
                     </div>
-                    <span id="requirement-detail-version"></span>
+                    <p class="hint">Define what the product must achieve.</p>
                 </div>
 
-                <p id="requirement-detail-source" class="hint"></p>
+                <form id="requirement-form" class="work-card create-card">
+                    <h3>Create functional draft</h3>
+                    <label for="requirement-title">Title</label>
+                    <input id="requirement-title" maxlength="120" required>
 
-                <label for="revision-title">Current title</label>
-                <input id="revision-title" maxlength="120">
+                    <label for="requirement-source">Origin</label>
+                    <input id="requirement-source" maxlength="500" placeholder="User request, workshop, or source document" required>
 
-                <label for="revision-statement">Current statement</label>
-                <textarea id="revision-statement" maxlength="4000" rows="5"></textarea>
+                    <label for="requirement-statement">Requirement statement</label>
+                    <textarea id="requirement-statement" maxlength="4000" rows="5" required></textarea>
 
-                <label for="revision-note">Revision or decision note</label>
-                <input id="revision-note" maxlength="500">
+                    <button type="submit">Create draft</button>
+                </form>
 
-                <div class="actions">
-                    <button id="revise-requirement" type="button">Create revision</button>
-                    <button id="submit-requirement" type="button">Submit for review</button>
-                    <button id="approve-requirement" type="button">Approve</button>
-                    <button id="reject-requirement" type="button" class="secondary">Reject</button>
-                </div>
+                <p id="requirement-message" class="message" aria-live="polite"></p>
 
-                <div class="ai-review-panel">
-                    <h4>Codex proposals</h4>
-                    <p class="hint">A confirmed request sends the current title, origin, and statement to Codex. The result cannot change or approve the requirement.</p>
-                    <button id="request-ai-review" type="button">Request Codex review</button>
-                    <div id="ai-review-list"></div>
-                </div>
+                <article id="requirement-detail" class="work-card detail-card" hidden>
+                    <div class="detail-heading">
+                        <div>
+                            <p id="requirement-detail-status" class="eyebrow"></p>
+                            <h3 id="requirement-detail-title"></h3>
+                        </div>
+                        <span id="requirement-detail-version"></span>
+                    </div>
 
-                <h4>Derived technical requirements</h4>
-                <ul id="derived-technical-list" class="requirement-list"></ul>
+                    <p id="requirement-detail-source" class="hint"></p>
 
-                <h4>Versions</h4>
-                <ol id="requirement-versions"></ol>
+                    <label for="revision-title">Current title</label>
+                    <input id="revision-title" maxlength="120">
 
-                <h4>Timeline</h4>
-                <ol id="requirement-timeline"></ol>
-            </article>
-        </section>
+                    <label for="revision-statement">Current statement</label>
+                    <textarea id="revision-statement" maxlength="4000" rows="5"></textarea>
 
-        <section id="technical-requirements" aria-labelledby="technical-requirements-title">
-            <h2 id="technical-requirements-title">Technical requirements</h2>
-            <p class="hint">Each technical requirement derives from one immutable approved functional version.</p>
+                    <label for="revision-note">Revision or decision note</label>
+                    <input id="revision-note" maxlength="500">
 
-            <form id="technical-requirement-form">
-                <label for="technical-origin">Approved functional origin</label>
-                <select id="technical-origin" required>
-                    <option value="">Select an approved functional requirement</option>
-                </select>
+                    <div class="actions">
+                        <button id="revise-requirement" type="button">Create revision</button>
+                        <button id="submit-requirement" type="button">Submit for review</button>
+                        <button id="approve-requirement" type="button">Approve</button>
+                        <button id="reject-requirement" type="button" class="secondary">Reject</button>
+                    </div>
 
-                <label for="technical-title">Title</label>
-                <input id="technical-title" maxlength="120" required>
+                    <div class="ai-review-panel">
+                        <h4>Codex proposals</h4>
+                        <p class="hint">A confirmed request sends the current title, origin, and statement to Codex. The result cannot change or approve the requirement.</p>
+                        <button id="request-ai-review" type="button">Request Codex review</button>
+                        <div id="ai-review-list"></div>
+                    </div>
 
-                <label for="technical-statement">Technical requirement statement</label>
-                <textarea id="technical-statement" maxlength="4000" rows="5" required></textarea>
+                    <h4>Derived technical requirements</h4>
+                    <ul id="derived-technical-list" class="requirement-list"></ul>
 
-                <button type="submit">Create technical draft</button>
-            </form>
+                    <h4>Versions</h4>
+                    <ol id="requirement-versions"></ol>
 
-            <p id="technical-message" class="message" aria-live="polite"></p>
-            <ul id="technical-list" class="requirement-list"></ul>
+                    <h4>Timeline</h4>
+                    <ol id="requirement-timeline"></ol>
+                </article>
+            </section>
 
-            <article id="technical-detail" hidden>
-                <div class="detail-heading">
+            <section id="panel-technical" class="workspace-panel" role="tabpanel" aria-labelledby="tab-technical" tabindex="0" data-panel="technical" hidden>
+                <div class="panel-heading">
                     <div>
-                        <p id="technical-detail-status" class="eyebrow"></p>
-                        <h3 id="technical-detail-title"></h3>
+                        <p class="eyebrow">IMPLEMENTATION CONTRACT</p>
+                        <h2 id="technical-requirements-title">Technical requirements</h2>
                     </div>
-                    <span id="technical-detail-version"></span>
+                    <p class="hint">Derive implementation constraints from approved intent.</p>
                 </div>
 
-                <button id="technical-origin-link" type="button" class="requirement-link"></button>
+                <form id="technical-requirement-form" class="work-card create-card">
+                    <h3>Create technical draft</h3>
+                    <label for="technical-origin">Approved functional origin</label>
+                    <select id="technical-origin" required>
+                        <option value="">Select an approved functional requirement</option>
+                    </select>
 
-                <label for="technical-revision-title">Current title</label>
-                <input id="technical-revision-title" maxlength="120">
+                    <label for="technical-title">Title</label>
+                    <input id="technical-title" maxlength="120" required>
 
-                <label for="technical-revision-statement">Current statement</label>
-                <textarea id="technical-revision-statement" maxlength="4000" rows="5"></textarea>
+                    <label for="technical-statement">Technical requirement statement</label>
+                    <textarea id="technical-statement" maxlength="4000" rows="5" required></textarea>
 
-                <label for="technical-revision-note">Revision or decision note</label>
-                <input id="technical-revision-note" maxlength="500">
+                    <button type="submit">Create technical draft</button>
+                </form>
 
-                <div class="actions">
-                    <button id="revise-technical-requirement" type="button">Create revision</button>
-                    <button id="submit-technical-requirement" type="button">Submit for review</button>
-                    <button id="approve-technical-requirement" type="button">Approve</button>
-                    <button id="reject-technical-requirement" type="button" class="secondary">Reject</button>
+                <p id="technical-message" class="message" aria-live="polite"></p>
+
+                <article id="technical-detail" class="work-card detail-card" hidden>
+                    <div class="detail-heading">
+                        <div>
+                            <p id="technical-detail-status" class="eyebrow"></p>
+                            <h3 id="technical-detail-title"></h3>
+                        </div>
+                        <span id="technical-detail-version"></span>
+                    </div>
+
+                    <button id="technical-origin-link" type="button" class="requirement-link"></button>
+
+                    <label for="technical-revision-title">Current title</label>
+                    <input id="technical-revision-title" maxlength="120">
+
+                    <label for="technical-revision-statement">Current statement</label>
+                    <textarea id="technical-revision-statement" maxlength="4000" rows="5"></textarea>
+
+                    <label for="technical-revision-note">Revision or decision note</label>
+                    <input id="technical-revision-note" maxlength="500">
+
+                    <div class="actions">
+                        <button id="revise-technical-requirement" type="button">Create revision</button>
+                        <button id="submit-technical-requirement" type="button">Submit for review</button>
+                        <button id="approve-technical-requirement" type="button">Approve</button>
+                        <button id="reject-technical-requirement" type="button" class="secondary">Reject</button>
+                    </div>
+
+                    <h4>Derived tasks</h4>
+                    <ul id="derived-task-list" class="requirement-list"></ul>
+
+                    <h4>Versions</h4>
+                    <ol id="technical-versions"></ol>
+
+                    <h4>Timeline</h4>
+                    <ol id="technical-timeline"></ol>
+                </article>
+            </section>
+
+            <section id="panel-tasks" class="workspace-panel" role="tabpanel" aria-labelledby="tab-tasks" tabindex="0" data-panel="tasks" hidden>
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">DELIVERY UNIT</p>
+                        <h2 id="tasks-title">Tasks</h2>
+                    </div>
+                    <p class="hint">Define bounded work from approved technical requirements.</p>
                 </div>
 
-                <h4>Versions</h4>
-                <ol id="technical-versions"></ol>
+                <form id="task-form" class="work-card create-card">
+                    <h3>Create task draft</h3>
+                    <label for="task-origin">Approved technical origin</label>
+                    <select id="task-origin" required>
+                        <option value="">Select an approved technical requirement</option>
+                    </select>
 
-                <h4>Timeline</h4>
-                <ol id="technical-timeline"></ol>
-            </article>
-        </section>
+                    <label for="task-title">Title</label>
+                    <input id="task-title" maxlength="120" required>
 
-        <section aria-labelledby="application-status-title">
-            <h2 id="application-status-title">Application</h2>
-            <p id="application-status">Checking application status...</p>
-            <a href="/documentation/">Explore the OpenAPI contract</a>
-        </section>
+                    <label for="task-objective">Objective</label>
+                    <textarea id="task-objective" maxlength="2000" rows="4" required></textarea>
 
-        <section aria-labelledby="codex-status-title">
-            <h2 id="codex-status-title">Codex provider</h2>
-            <p id="codex-status">Checking Codex status...</p>
-            <button id="codex-smoke" type="button" disabled>Run read-only smoke test</button>
-            <pre id="codex-result" aria-live="polite"></pre>
+                    <label for="task-criteria">Acceptance criteria</label>
+                    <textarea id="task-criteria" maxlength="5009" rows="5" placeholder="One criterion per line" required></textarea>
+
+                    <button type="submit">Create task draft</button>
+                </form>
+
+                <p id="task-message" class="message" aria-live="polite"></p>
+
+                <article id="task-detail" class="work-card detail-card" hidden>
+                    <div class="detail-heading">
+                        <div>
+                            <p id="task-detail-status" class="eyebrow"></p>
+                            <h3 id="task-detail-title"></h3>
+                        </div>
+                        <span id="task-detail-version"></span>
+                    </div>
+
+                    <button id="task-origin-link" type="button" class="requirement-link"></button>
+
+                    <label for="task-revision-title">Current title</label>
+                    <input id="task-revision-title" maxlength="120">
+
+                    <label for="task-revision-objective">Current objective</label>
+                    <textarea id="task-revision-objective" maxlength="2000" rows="4"></textarea>
+
+                    <label for="task-revision-criteria">Current acceptance criteria</label>
+                    <textarea id="task-revision-criteria" maxlength="5009" rows="5"></textarea>
+
+                    <label for="task-revision-note">Revision or decision note</label>
+                    <input id="task-revision-note" maxlength="500">
+
+                    <div class="actions">
+                        <button id="revise-task" type="button">Create task revision</button>
+                        <button id="submit-task" type="button">Submit for review</button>
+                        <button id="approve-task" type="button">Approve</button>
+                        <button id="reject-task" type="button" class="secondary">Reject</button>
+                        <button id="run-task-readiness-check" type="button" class="secondary-action">Run readiness check</button>
+                        <button id="view-process" type="button" class="secondary-action">View process</button>
+                    </div>
+
+                    <h4>Readiness</h4>
+                    <p id="task-readiness-summary" class="hint">No readiness check recorded.</p>
+                    <ul id="task-readiness-rules"></ul>
+
+                    <h4>Codex execution proposals</h4>
+                    <p class="hint">Approved chain content will be sent to Codex. This isolated read-only step is instructed not to inspect or modify project files.</p>
+                    <button id="request-task-execution-proposal" type="button" class="secondary-action">Request Codex execution proposal</button>
+                    <div id="task-execution-proposals"></div>
+
+                    <h4>Versions</h4>
+                    <ol id="task-versions"></ol>
+                </article>
+            </section>
+
+            <section id="panel-process" class="workspace-panel" role="tabpanel" aria-labelledby="tab-process" tabindex="0" data-panel="process" hidden>
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">READ-ONLY EVIDENCE</p>
+                        <h2>Process</h2>
+                    </div>
+                    <p class="hint">Review the complete derivation and event history.</p>
+                </div>
+
+                <p id="process-empty" class="empty-state">Select a task, then choose View process.</p>
+                <article id="process-detail" class="work-card process-trace" hidden>
+                    <h4>Process trace</h4>
+                    <nav class="trace-chain" aria-label="Process trace">
+                        <button id="trace-functional-link" type="button" class="requirement-link"></button>
+                        <span aria-hidden="true">→</span>
+                        <button id="trace-technical-link" type="button" class="requirement-link"></button>
+                        <span aria-hidden="true">→</span>
+                        <span id="trace-task-current"></span>
+                    </nav>
+                    <ol id="process-trace-timeline"></ol>
+                </article>
+            </section>
         </section>
     </main>
     <script src="/app.js"></script>

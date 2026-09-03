@@ -12,24 +12,39 @@ const Fastify = require("fastify");
 const getOpenApiConfig = require(path.resolve(process.cwd(), "config", "openapi.js"));
 
 const createFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "createFunctionalRequirement.js"));
+const createTask = require(path.resolve(process.cwd(), "src", "services", "createTask.js"));
 const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "createTechnicalRequirement.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
+const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
+const evaluateTaskReadiness = require(path.resolve(process.cwd(), "src", "services", "evaluateTaskReadiness.js"));
 const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "getCodexStatus.js"));
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
 const getHealth = require(path.resolve(process.cwd(), "src", "services", "getHealth.js"));
+const getTask = require(path.resolve(process.cwd(), "src", "services", "getTask.js"));
+const getTaskTrace = require(path.resolve(process.cwd(), "src", "services", "getTaskTrace.js"));
 const getTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "getTechnicalRequirement.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
+const listTasks = require(path.resolve(process.cwd(), "src", "services", "listTasks.js"));
 const listTechnicalRequirements = require(path.resolve(process.cwd(), "src", "services", "listTechnicalRequirements.js"));
 const proposeFunctionalRequirementAiReview = require(path.resolve(process.cwd(), "src", "services", "proposeFunctionalRequirementAiReview.js"));
+const proposeTaskExecution = require(path.resolve(process.cwd(), "src", "services", "proposeTaskExecution.js"));
 const reviseFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseFunctionalRequirement.js"));
+const reviseTask = require(path.resolve(process.cwd(), "src", "services", "reviseTask.js"));
 const reviseTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseTechnicalRequirement.js"));
 const runCodexSmoke = require(path.resolve(process.cwd(), "src", "services", "runCodexSmoke.js"));
 const submitFunctionalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitFunctionalRequirementReview.js"));
+const submitTaskReview = require(path.resolve(process.cwd(), "src", "services", "submitTaskReview.js"));
 const submitTechnicalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitTechnicalRequirementReview.js"));
 
 const actorNameSchema = {maxLength: 80, minLength: 1, type: "string"};
 const noteSchema = {maxLength: 500, minLength: 1, type: "string"};
+const acceptanceCriteriaSchema = {
+    items: {maxLength: 500, minLength: 1, type: "string"},
+    maxItems: 10,
+    minItems: 1,
+    type: "array"
+};
 const requirementIdSchema = {
     properties: {
         requirementId: {
@@ -38,6 +53,16 @@ const requirementIdSchema = {
         }
     },
     required: ["requirementId"],
+    type: "object"
+};
+const taskIdSchema = {
+    properties: {
+        taskId: {
+            format: "uuid",
+            type: "string"
+        }
+    },
+    required: ["taskId"],
     type: "object"
 };
 
@@ -54,10 +79,14 @@ function mapErrorStatus(error) {
         FUNCTIONAL_REQUIREMENT_NOT_APPROVED: 409,
         FUNCTIONAL_REQUIREMENT_NOT_FOUND: 404,
         INVALID_REQUEST: 400,
+        INVALID_TASK_TRANSITION: 409,
         INVALID_TECHNICAL_TRANSITION: 409,
         INVALID_TRANSITION: 409,
         REQUIREMENT_NOT_FOUND: 404,
         STORE_CORRUPTED: 500,
+        TASK_NOT_FOUND: 404,
+        TASK_NOT_READY: 409,
+        TECHNICAL_REQUIREMENT_NOT_APPROVED: 409,
         TECHNICAL_REQUIREMENT_NOT_FOUND: 404
     };
 
@@ -393,6 +422,179 @@ module.exports = function createApp() {
         });
     });
 
+    app.post("/api/tasks", {
+        schema: {
+            operationId: "createTask",
+            summary: "Create a task draft from an approved technical origin",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    acceptanceCriteria: acceptanceCriteriaSchema,
+                    actorName: actorNameSchema,
+                    objective: {maxLength: 2000, minLength: 1, type: "string"},
+                    technicalRequirementId: {format: "uuid", type: "string"},
+                    title: {maxLength: 120, minLength: 1, type: "string"}
+                },
+                required: ["acceptanceCriteria", "actorName", "objective", "technicalRequirementId", "title"],
+                type: "object"
+            }
+        }
+    }, async function (request, reply) {
+        const task = await createTask(request.body);
+        return reply.code(201).send(task);
+    });
+
+    app.get("/api/tasks", {
+        schema: {
+            operationId: "listTasks",
+            summary: "List task drafts and optionally filter by technical origin",
+            tags: ["Tasks"],
+            querystring: {
+                additionalProperties: false,
+                properties: {
+                    technicalRequirementId: {format: "uuid", type: "string"}
+                },
+                type: "object"
+            }
+        }
+    }, async function (request) {
+        return await listTasks({
+            technicalRequirementId: request.query.technicalRequirementId
+        });
+    });
+
+    app.get("/api/tasks/:taskId", {
+        schema: {
+            operationId: "getTask",
+            params: taskIdSchema,
+            summary: "Get one task draft with its technical origin",
+            tags: ["Tasks"]
+        }
+    }, async function (request) {
+        return await getTask({taskId: request.params.taskId});
+    });
+
+    app.get("/api/tasks/:taskId/trace", {
+        schema: {
+            operationId: "getTaskTrace",
+            params: taskIdSchema,
+            summary: "Get the normalized process trace for one task",
+            tags: ["Tasks"]
+        }
+    }, async function (request) {
+        return await getTaskTrace({taskId: request.params.taskId});
+    });
+
+    app.post("/api/tasks/:taskId/revisions", {
+        schema: {
+            operationId: "reviseTask",
+            summary: "Create an immutable task draft revision",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    acceptanceCriteria: acceptanceCriteriaSchema,
+                    actorName: actorNameSchema,
+                    note: noteSchema,
+                    objective: {maxLength: 2000, minLength: 1, type: "string"},
+                    title: {maxLength: 120, minLength: 1, type: "string"}
+                },
+                required: ["acceptanceCriteria", "actorName", "note", "objective", "title"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request, reply) {
+        const task = await reviseTask({...request.body, taskId: request.params.taskId});
+        return reply.code(201).send(task);
+    });
+
+    app.post("/api/tasks/:taskId/review", {
+        schema: {
+            operationId: "submitTaskReview",
+            summary: "Submit a task draft for human review",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    actorName: actorNameSchema
+                },
+                required: ["actorName"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await submitTaskReview({
+            actorName: request.body.actorName,
+            taskId: request.params.taskId
+        });
+    });
+
+    app.post("/api/tasks/:taskId/decisions", {
+        schema: {
+            operationId: "decideTask",
+            summary: "Approve or reject a reviewed task",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    actorName: actorNameSchema,
+                    decision: {enum: ["approved", "rejected"], type: "string"},
+                    note: noteSchema
+                },
+                required: ["actorName", "decision", "note"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await decideTask({
+            ...request.body,
+            taskId: request.params.taskId
+        });
+    });
+
+    app.post("/api/tasks/:taskId/checks", {
+        schema: {
+            operationId: "evaluateTaskReadiness",
+            summary: "Evaluate the approved task derivation chain",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {},
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await evaluateTaskReadiness({taskId: request.params.taskId});
+    });
+
+    app.post("/api/tasks/:taskId/execution-proposals", {
+        schema: {
+            operationId: "proposeTaskExecution",
+            summary: "Request a read-only Codex execution proposal for a ready task",
+            tags: ["Tasks", "Codex"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    confirmed: {const: true}
+                },
+                required: ["confirmed"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await proposeTaskExecution({
+            confirmed: request.body.confirmed,
+            signal: request.raw.signal,
+            taskId: request.params.taskId
+        });
+    });
+
     app.post("/api/providers/codex/smoke", {
         schema: {
             operationId: "runCodexSmoke",
@@ -430,10 +632,13 @@ module.exports = function createApp() {
             FUNCTIONAL_REQUIREMENT_NOT_FOUND: "The originating functional requirement was not found.",
             INTERNAL_ERROR: "An internal error occurred.",
             INVALID_REQUEST: "The request is invalid.",
+            INVALID_TASK_TRANSITION: "The task transition is not allowed.",
             INVALID_TECHNICAL_TRANSITION: "The technical requirement transition is not allowed.",
             INVALID_TRANSITION: "The functional requirement transition is not allowed.",
             REQUIREMENT_NOT_FOUND: "The functional requirement was not found.",
             STORE_CORRUPTED: "The local event store is corrupted.",
+            TASK_NOT_FOUND: "The task was not found.",
+            TECHNICAL_REQUIREMENT_NOT_APPROVED: "The originating technical requirement is not approved.",
             TECHNICAL_REQUIREMENT_NOT_FOUND: "The technical requirement was not found."
         };
 

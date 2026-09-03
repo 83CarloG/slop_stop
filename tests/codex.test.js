@@ -145,6 +145,47 @@ test("Codex requirement review rejects malformed output and times out", async fu
     });
 });
 
+test("Codex task execution proposals are structured and isolated from the workspace", async function () {
+    const approvedChain = {
+        functionalRequirement: {statement: "Evidence can be exported.", title: "Export evidence", version: 1},
+        task: {
+            acceptanceCriteria: ["The export contains normalized evidence."],
+            objective: "Add a bounded evidence export.",
+            title: "Implement governed export",
+            version: 1
+        },
+        technicalRequirement: {statement: "Expose a JSON export service.", title: "Build evidence export", version: 1}
+    };
+
+    await withCodexEnvironment("fakeCodex.js", 2000, async function () {
+        process.env.OPENAI_API_KEY = "must-not-reach-the-child";
+        const result = await codex({action: "proposeTaskExecution", approvedChain});
+
+        assert.equal(result.provider, "codex");
+        assert.deepEqual(result.proposal, {
+            proposedChanges: [{
+                description: "Add the bounded export service and its deterministic tests.",
+                path: "src/services/exportEvidence.js"
+            }],
+            risks: ["Exported evidence may expose fields outside the normalized contract."],
+            summary: "Implement a normalized evidence export behind the existing service boundary.",
+            validationSteps: ["Run the deterministic unit and architecture test suites."]
+        });
+    });
+
+    await withCodexEnvironment("fakeCodexMalformed.js", 2000, async function () {
+        await assert.rejects(codex({action: "proposeTaskExecution", approvedChain}), function (error) {
+            return error.code === "CODEX_PROTOCOL_ERROR";
+        });
+    });
+
+    await withCodexEnvironment("fakeCodexSlow.js", 50, async function () {
+        await assert.rejects(codex({action: "proposeTaskExecution", approvedChain}), function (error) {
+            return error.code === "CODEX_TIMEOUT";
+        });
+    });
+});
+
 test("Codex smoke times out and can be cancelled", async function () {
     await withCodexEnvironment("fakeCodexSlow.js", 50, async function () {
         await assert.rejects(

@@ -141,6 +141,14 @@ test("Fastify remains outside src", function () {
     }
 });
 
+test("the default local server uses native autoreload", function () {
+    const packageJson = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "package.json"), "utf8"));
+
+    assert.match(packageJson.scripts.start, /(?:^|\s)--watch(?:\s|$)/u);
+    assert.equal(packageJson.scripts.dev, "npm start");
+    assert.doesNotMatch(packageJson.scripts["start:once"], /(?:^|\s)--watch(?:\s|$)/u);
+});
+
 test("the dependency detector rejects known violations", function () {
     assert.throws(function () {
         validateLayerDependency("jobs", "jobs");

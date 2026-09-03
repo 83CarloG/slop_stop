@@ -9,20 +9,29 @@ const createApp = require(path.resolve(process.cwd(), "server", "app.js"));
 
 const expectedOperations = [
     "createFunctionalRequirement",
+    "createTask",
     "createTechnicalRequirement",
     "decideFunctionalRequirement",
+    "decideTask",
     "decideTechnicalRequirement",
+    "evaluateTaskReadiness",
     "getCodexStatus",
     "getFunctionalRequirement",
     "getHealth",
+    "getTask",
+    "getTaskTrace",
     "getTechnicalRequirement",
     "listFunctionalRequirements",
+    "listTasks",
     "listTechnicalRequirements",
     "proposeFunctionalRequirementAiReview",
+    "proposeTaskExecution",
     "reviseFunctionalRequirement",
+    "reviseTask",
     "reviseTechnicalRequirement",
     "runCodexSmoke",
     "submitFunctionalRequirementReview",
+    "submitTaskReview",
     "submitTechnicalRequirementReview"
 ];
 
@@ -62,6 +71,12 @@ test("the generated OpenAPI contract documents every API operation", async funct
         assert.equal(new Set(operations).size, operations.length);
         assert.ok(contract.paths["/api/functional-requirements/{requirementId}/ai-reviews"]);
         assert.ok(contract.paths["/api/technical-requirements/{requirementId}/decisions"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/revisions"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/review"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/decisions"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/checks"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/execution-proposals"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/trace"]);
     } finally {
         await app.close();
     }
