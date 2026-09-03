@@ -5,6 +5,7 @@ const actorNameInput = document.querySelector("#actor-name");
 const aiReviewList = document.querySelector("#ai-review-list");
 const approveRequirementButton = document.querySelector("#approve-requirement");
 const approveTaskButton = document.querySelector("#approve-task");
+const createTaskExecutionCandidateButton = document.querySelector("#create-task-execution-candidate");
 const codexStatus = document.querySelector("#codex-status");
 const codexSmokeButton = document.querySelector("#codex-smoke");
 const codexResult = document.querySelector("#codex-result");
@@ -62,7 +63,9 @@ const taskDetail = document.querySelector("#task-detail");
 const taskDetailStatus = document.querySelector("#task-detail-status");
 const taskDetailTitle = document.querySelector("#task-detail-title");
 const taskDetailVersion = document.querySelector("#task-detail-version");
+const taskExecutionNoteInput = document.querySelector("#task-execution-note");
 const taskExecutionProposals = document.querySelector("#task-execution-proposals");
+const taskExecutions = document.querySelector("#task-executions");
 const taskForm = document.querySelector("#task-form");
 const taskMessage = document.querySelector("#task-message");
 const taskObjectiveInput = document.querySelector("#task-objective");
@@ -95,6 +98,7 @@ let technicalRequirements = [];
 let tasks = [];
 let activeDocument = null;
 let codexReady = false;
+let taskExecutionRequestPending = false;
 const collapsedTreeNodes = new Set();
 
 async function readJson(response) {
@@ -190,6 +194,9 @@ function createTimelineText(event) {
         task_created: "Task draft created",
         task_check_evaluated: "Task readiness check evaluated",
         task_decided: "Task decision recorded",
+        task_execution_authorized: "Isolated execution authorized",
+        task_execution_candidate_created: "Implementation candidate created",
+        task_execution_failed: "Isolated execution failed",
         task_execution_proposed: "Codex execution proposal recorded",
         task_revised: "Task revision created",
         task_review_submitted: "Task submitted for review",
@@ -206,6 +213,10 @@ function createTimelineText(event) {
 
 function updateCodexActionState() {
     const latestCheck = selectedTask ? selectedTask.checks.at(-1) : null;
+    const latestProposal = selectedTask ? selectedTask.executionProposals.at(-1) : null;
+    const executionRunning = selectedTask ? selectedTask.executions.some(function (execution) {
+        return execution.status === "running";
+    }) : false;
 
     requestAiReviewButton.disabled = !selectedRequirement ||
         selectedRequirement.status !== "draft" ||
@@ -217,6 +228,11 @@ function updateCodexActionState() {
         latestCheck.version !== selectedTask.currentVersion ||
         latestCheck.status !== "passed" ||
         latestCheck.consequence !== "allow";
+    createTaskExecutionCandidateButton.disabled = requestTaskExecutionProposalButton.disabled ||
+        taskExecutionRequestPending ||
+        executionRunning ||
+        !latestProposal ||
+        latestProposal.version !== selectedTask.currentVersion;
 }
 
 function renderRequirement(requirement) {
@@ -679,6 +695,63 @@ function renderTask(task) {
 
         container.append(heading, summary, changesHeading, changes, validationHeading, validation, risksHeading, risks);
         taskExecutionProposals.append(container);
+    }
+
+    taskExecutions.replaceChildren();
+    for (const execution of task.executions) {
+        const container = document.createElement("section");
+        const heading = document.createElement("h5");
+        const note = document.createElement("p");
+
+        container.className = "ai-review";
+        heading.textContent = `Version ${execution.version} execution ${execution.status.replace(/_/gu, " ").toUpperCase()} — authorized by ${execution.authorizedBy.name} at ${execution.authorizedAt}`;
+        note.textContent = `Authorization note: ${execution.note}`;
+        container.append(heading, note);
+
+        if (execution.candidate) {
+            const summary = document.createElement("p");
+            const origin = document.createElement("p");
+            const integrity = document.createElement("p");
+            const filesHeading = document.createElement("strong");
+            const files = document.createElement("ul");
+            const notesHeading = document.createElement("strong");
+            const notes = document.createElement("ul");
+            const patchLink = document.createElement("a");
+
+            summary.textContent = execution.candidate.summary;
+            origin.className = "hint";
+            origin.textContent = `Patch of ${execution.candidate.bytes} bytes from source revision ${execution.candidate.sourceRevision}`;
+            integrity.className = "hint";
+            integrity.textContent = `Patch SHA-256: ${execution.candidate.patchSha256}`;
+            filesHeading.textContent = "Changed files";
+            notesHeading.textContent = "Unverified AI notes";
+
+            for (const file of execution.candidate.changedFiles) {
+                const item = document.createElement("li");
+                item.textContent = file;
+                files.append(item);
+            }
+
+            for (const item of execution.candidate.validationNotes) {
+                const entry = document.createElement("li");
+                entry.textContent = item;
+                notes.append(entry);
+            }
+
+            patchLink.href = `/api/tasks/${task.id}/executions/${execution.id}/patch`;
+            patchLink.rel = "noopener";
+            patchLink.target = "_blank";
+            patchLink.textContent = "Review the integrity-checked patch";
+            container.append(summary, origin, integrity, filesHeading, files, notesHeading, notes, patchLink);
+        }
+
+        if (execution.failure) {
+            const failure = document.createElement("p");
+            failure.textContent = `Failure ${execution.failure.code} at ${execution.failure.failedAt}. No patch was kept.`;
+            container.append(failure);
+        }
+
+        taskExecutions.append(container);
     }
 
     taskVersions.replaceChildren();
@@ -1271,6 +1344,56 @@ requestTaskExecutionProposalButton.addEventListener("click", async function () {
     await performTaskAction(`/api/tasks/${selectedTaskId}/execution-proposals`, function () {
         return {confirmed: true};
     }, "Send the approved chain to Codex for a read-only execution proposal?");
+});
+
+createTaskExecutionCandidateButton.addEventListener("click", async function () {
+    if (!selectedTaskId || taskExecutionRequestPending) {
+        return;
+    }
+
+    try {
+        const payload = {
+            actorName: getActorName(),
+            confirmed: true,
+            note: taskExecutionNoteInput.value.trim()
+        };
+
+        if (!payload.note) {
+            throw new Error("Enter an execution authorization note first.");
+        }
+
+        if (!window.confirm("Allow Codex to write only inside a disposable clone of the current commit and create a patch for human review?")) {
+            return;
+        }
+
+        taskExecutionRequestPending = true;
+        updateCodexActionState();
+        taskMessage.textContent = "Creating an isolated implementation candidate...";
+
+        const task = await requestJson(`/api/tasks/${selectedTaskId}/executions`, {
+            body: JSON.stringify(payload),
+            headers: {"content-type": "application/json"},
+            method: "POST"
+        });
+
+        rememberActorName();
+        selectedTaskId = task.id;
+        taskExecutionNoteInput.value = "";
+        taskMessage.textContent = "Implementation candidate created for human review.";
+        await loadTasks();
+    } catch (error) {
+        const executionMessage = error.message;
+
+        try {
+            await loadTasks();
+            taskMessage.textContent = executionMessage;
+        } catch (refreshError) {
+            taskMessage.textContent = `${executionMessage} Refresh the task to inspect recorded execution evidence.`;
+        }
+    } finally {
+        taskExecutionRequestPending = false;
+        updateCodexActionState();
+    }
 });
 
 taskOriginLink.addEventListener("click", async function () {

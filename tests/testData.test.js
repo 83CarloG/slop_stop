@@ -13,6 +13,7 @@ test("test data reset creates one isolated approved and allowed project", async 
     const targetRoot = fs.mkdtempSync(path.join(os.tmpdir(), "slop-stop-test-data-"));
     const primaryStore = path.resolve(targetRoot, ".data", "events.jsonl");
     const testStore = path.resolve(targetRoot, ".data", "test", "events.jsonl");
+    const testArtifacts = path.resolve(targetRoot, ".data", "test", "executions");
 
     try {
         fs.mkdirSync(path.dirname(primaryStore), {recursive: true});
@@ -25,6 +26,9 @@ test("test data reset creates one isolated approved and allowed project", async 
         assert.equal(fs.readFileSync(primaryStore, "utf8"), "primary data remains untouched\n");
         assert.equal(fs.readFileSync(testStore, "utf8").trim().split("\n").length, 10);
 
+        fs.mkdirSync(testArtifacts, {recursive: true});
+        fs.writeFileSync(path.resolve(testArtifacts, "stale.patch"), "stale test patch\n", "utf8");
+
         await assert.rejects(manageTestData("seed", targetRoot), function (error) {
             return error.code === "TEST_DATA_NOT_EMPTY";
         });
@@ -33,6 +37,7 @@ test("test data reset creates one isolated approved and allowed project", async 
 
         assert.equal(cleaned.removed, true);
         assert.equal(fs.existsSync(testStore), false);
+        assert.equal(fs.existsSync(testArtifacts), false);
         assert.equal(fs.readFileSync(primaryStore, "utf8"), "primary data remains untouched\n");
     } finally {
         fs.rmSync(targetRoot, {force: true, recursive: true});

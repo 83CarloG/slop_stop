@@ -433,7 +433,14 @@ function buildExecArguments(config, schemaName, options = {}) {
         "--json",
         "--ephemeral",
         "--ignore-user-config",
-        "--ignore-rules",
+        "--ignore-rules"
+    ];
+
+    if (process.platform === "win32" && options.sandbox === "workspace-write") {
+        argumentsList.push("--config", "windows.sandbox=\"elevated\"");
+    }
+
+    argumentsList.push(
         "--color",
         "never",
         "--sandbox",
@@ -442,14 +449,10 @@ function buildExecArguments(config, schemaName, options = {}) {
         options.cwd || process.cwd(),
         "--output-schema",
         path.resolve(process.cwd(), "config", schemaName)
-    ];
+    );
 
     if (options.skipGitRepoCheck) {
         argumentsList.push("--skip-git-repo-check");
-    }
-
-    if (options.approvalPolicy) {
-        argumentsList.push("--ask-for-approval", options.approvalPolicy);
     }
 
     if (config.codexModel) {
@@ -615,7 +618,6 @@ async function runTaskExecution(config, executionContext, workspacePath, signal)
     const result = await executeProcess(
         config.codexCommand,
         buildExecArguments(config, "codexTaskExecutionOutput.schema.json", {
-            approvalPolicy: "never",
             cwd: workspacePath,
             sandbox: "workspace-write"
         }),

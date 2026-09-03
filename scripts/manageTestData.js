@@ -40,12 +40,29 @@ function resolveTestStore(targetRoot) {
 }
 
 function cleanTestStore(storePath) {
-    if (!fs.existsSync(storePath)) {
-        return false;
+    const testRoot = path.dirname(storePath);
+    const artifactDirectory = path.resolve(testRoot, "executions");
+    let removed = false;
+
+    if (path.dirname(artifactDirectory) !== testRoot) {
+        throw new Error("The test artifact path is invalid.");
     }
 
-    fs.rmSync(storePath, {force: true});
-    return true;
+    if (fs.existsSync(storePath)) {
+        fs.rmSync(storePath, {force: true});
+        removed = true;
+    }
+
+    if (fs.existsSync(artifactDirectory)) {
+        if (fs.lstatSync(artifactDirectory).isSymbolicLink()) {
+            throw new Error("The test artifact directory must not be symbolic.");
+        }
+
+        fs.rmSync(artifactDirectory, {force: true, recursive: true});
+        removed = true;
+    }
+
+    return removed;
 }
 
 async function seedTestProject() {
@@ -53,9 +70,9 @@ async function seedTestProject() {
     const reviewer = "Test project reviewer";
     const functional = await createFunctionalRequirement({
         actorName: creator,
-        source: "M5A test project",
-        statement: "The user can review a bounded implementation proposal before execution.",
-        title: "Review an implementation proposal"
+        source: "M5B test project",
+        statement: "The user can review a generated English project note before any application.",
+        title: "Review a generated project note"
     });
 
     await submitFunctionalRequirementReview({actorName: reviewer, requirementId: functional.id});
@@ -69,8 +86,8 @@ async function seedTestProject() {
     const technical = await createTechnicalRequirement({
         actorName: creator,
         functionalRequirementId: functional.id,
-        statement: "Request a structured Codex proposal without granting workspace write access.",
-        title: "Prepare a read-only Codex proposal"
+        statement: "Create examples/m5b-review-summary.md only inside the disposable clone.",
+        title: "Define an isolated review note"
     });
 
     await submitTechnicalRequirementReview({actorName: reviewer, requirementId: technical.id});
@@ -83,21 +100,21 @@ async function seedTestProject() {
 
     const task = await createTask({
         acceptanceCriteria: [
-            "The proposal lists bounded file changes.",
-            "The proposal lists validation steps and risks.",
-            "The task remains approved after the proposal is recorded."
+            "The candidate creates examples/m5b-review-summary.md.",
+            "The file starts with the heading # M5B Review Candidate.",
+            "The file states that the candidate requires human review before application."
         ],
         actorName: creator,
-        objective: "Generate and inspect one governed execution proposal.",
+        objective: "Create the bounded English review note described by the acceptance criteria.",
         technicalRequirementId: technical.id,
-        title: "Test the governed execution proposal"
+        title: "Create an isolated review summary"
     });
 
     await submitTaskReview({actorName: reviewer, taskId: task.id});
     await decideTask({
         actorName: reviewer,
         decision: "approved",
-        note: "Approved for the isolated M5A test.",
+        note: "Approved for the isolated M5B test.",
         taskId: task.id
     });
     const readyTask = await evaluateTaskReadiness({taskId: task.id});
