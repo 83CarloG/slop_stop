@@ -115,6 +115,94 @@ function executionProposalIsValid(event, task) {
         stringArrayIsValid(proposal.risks, 10, 500);
 }
 
+function taskIsExecutable(task) {
+    const latestCheck = task.checks.at(-1);
+    const latestProposal = task.executionProposals.at(-1);
+
+    return task.status === "approved" &&
+        task.approvedVersion === task.currentVersion &&
+        latestCheck &&
+        latestCheck.version === task.currentVersion &&
+        latestCheck.status === "passed" &&
+        latestCheck.consequence === "allow" &&
+        latestProposal &&
+        latestProposal.version === task.currentVersion;
+}
+
+function executionAuthorizationIsValid(event, task) {
+    const payload = event.payload;
+    const latestProposal = task.executionProposals.at(-1);
+
+    return taskIsExecutable(task) &&
+        event.actor.kind === "human" &&
+        Object.keys(payload).sort().join(",") === "executionId,note,proposalCreatedAt,taskId,version" &&
+        payload.taskId === task.id &&
+        payload.version === task.currentVersion &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(payload.executionId) &&
+        !task.executions.some(function (execution) {
+            return execution.id === payload.executionId;
+        }) &&
+        payload.proposalCreatedAt === latestProposal.createdAt &&
+        typeof payload.note === "string" &&
+        payload.note.trim().length > 0 &&
+        payload.note.length <= 500;
+}
+
+function pathIsSafeRelative(value) {
+    return typeof value === "string" &&
+        value.length > 0 &&
+        value.length <= 260 &&
+        /^[A-Za-z0-9._/-]+$/u.test(value) &&
+        !value.startsWith("/") &&
+        value.split("/").every(function (segment) {
+            return segment !== "" && segment !== "." && segment !== "..";
+        });
+}
+
+function executionCandidateIsValid(event, task, execution) {
+    const payload = event.payload;
+    const changedFilesAreValid = Array.isArray(payload.changedFiles) &&
+        payload.changedFiles.length >= 1 &&
+        payload.changedFiles.length <= 50 &&
+        new Set(payload.changedFiles).size === payload.changedFiles.length &&
+        payload.changedFiles.every(pathIsSafeRelative);
+
+    return execution &&
+        execution.status === "running" &&
+        event.actor.kind === "ai" &&
+        event.actor.name === "Codex" &&
+        Object.keys(payload).sort().join(",") === "artifact,bytes,changedFiles,executionId,patchSha256,sourceRevision,summary,taskId,validationNotes,version" &&
+        payload.taskId === task.id &&
+        payload.version === execution.version &&
+        payload.executionId === execution.id &&
+        payload.artifact === `executions/${execution.id}.patch` &&
+        Number.isInteger(payload.bytes) &&
+        payload.bytes > 0 &&
+        payload.bytes <= 512 * 1024 &&
+        changedFilesAreValid &&
+        /^[0-9a-f]{64}$/u.test(payload.patchSha256) &&
+        /^[0-9a-f]{40,64}$/u.test(payload.sourceRevision) &&
+        typeof payload.summary === "string" &&
+        payload.summary.trim().length > 0 &&
+        payload.summary.length <= 1000 &&
+        stringArrayIsValid(payload.validationNotes, 10, 500);
+}
+
+function executionFailureIsValid(event, task, execution) {
+    const payload = event.payload;
+
+    return execution &&
+        execution.status === "running" &&
+        event.actor.kind === "system" &&
+        event.actor.name === "execution-controller" &&
+        Object.keys(payload).sort().join(",") === "code,executionId,taskId,version" &&
+        payload.taskId === task.id &&
+        payload.version === execution.version &&
+        payload.executionId === execution.id &&
+        typeof payload.code === "string" &&
+        /^[A-Z][A-Z0-9_]{0,63}$/u.test(payload.code);
+}
+
 module.exports = function buildTaskViews(events) {
     const views = new Map();
 
@@ -144,6 +232,7 @@ module.exports = function buildTaskViews(events) {
                 createdAt: event.occurredAt,
                 currentVersion: 1,
                 decision: null,
+                executions: [],
                 executionProposals: [],
                 id: taskId,
                 status: "draft",
@@ -235,6 +324,59 @@ module.exports = function buildTaskViews(events) {
                 proposal: event.payload.proposal,
                 version: event.payload.version
             });
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_execution_authorized") {
+            if (!executionAuthorizationIsValid(event, existing)) {
+                throw createCorruptionError();
+            }
+
+            existing.executions.push({
+                authorizedAt: event.occurredAt,
+                authorizedBy: event.actor,
+                candidate: null,
+                failure: null,
+                id: event.payload.executionId,
+                note: event.payload.note,
+                proposalCreatedAt: event.payload.proposalCreatedAt,
+                status: "running",
+                version: event.payload.version
+            });
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_execution_candidate_created") {
+            const execution = existing.executions.find(function (item) {
+                return item.id === event.payload.executionId;
+            });
+
+            if (!executionCandidateIsValid(event, existing, execution)) {
+                throw createCorruptionError();
+            }
+
+            execution.candidate = {
+                artifact: event.payload.artifact,
+                bytes: event.payload.bytes,
+                changedFiles: [...event.payload.changedFiles],
+                createdAt: event.occurredAt,
+                patchSha256: event.payload.patchSha256,
+                sourceRevision: event.payload.sourceRevision,
+                summary: event.payload.summary,
+                validationNotes: [...event.payload.validationNotes]
+            };
+            execution.status = "awaiting_review";
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_execution_failed") {
+            const execution = existing.executions.find(function (item) {
+                return item.id === event.payload.executionId;
+            });
+
+            if (!executionFailureIsValid(event, existing, execution)) {
+                throw createCorruptionError();
+            }
+
+            execution.failure = {
+                code: event.payload.code,
+                failedAt: event.occurredAt
+            };
+            execution.status = "failed";
             existing.updatedAt = event.occurredAt;
         } else {
             throw createCorruptionError();

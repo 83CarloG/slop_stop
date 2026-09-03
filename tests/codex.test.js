@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("assert");
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const process = require("process");
 const test = require("node:test");
@@ -184,6 +186,37 @@ test("Codex task execution proposals are structured and isolated from the worksp
             return error.code === "CODEX_TIMEOUT";
         });
     });
+});
+
+test("Codex task execution writes only inside an explicitly writable disposable workspace", async function () {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), "slop-stop-execution-driver-"));
+
+    try {
+        fs.mkdirSync(path.resolve(workspacePath, ".git"));
+        fs.writeFileSync(path.resolve(workspacePath, ".git", "config"), "[core]\n\trepositoryformatversion = 0\n", "utf8");
+
+        await withCodexEnvironment("fakeCodex.js", 2000, async function () {
+            process.env.OPENAI_API_KEY = "must-not-reach-the-child";
+            const result = await codex({
+                action: "executeTask",
+                executionContext: {
+                    approvedChain: {task: {title: "Implement governed export"}},
+                    proposal: {summary: "Implement the approved task."}
+                },
+                workspacePath
+            });
+
+            assert.equal(result.provider, "codex");
+            assert.equal(result.result.summary, "Created one isolated implementation candidate.");
+            assert.deepEqual(result.result.validationNotes, ["No independent verification was performed."]);
+            assert.equal(
+                fs.readFileSync(path.resolve(workspacePath, "m5bCandidate.txt"), "utf8"),
+                "Generated only inside the disposable workspace.\n"
+            );
+        });
+    } finally {
+        fs.rmSync(workspacePath, {force: true, recursive: true});
+    }
 });
 
 test("Codex smoke times out and can be cancelled", async function () {

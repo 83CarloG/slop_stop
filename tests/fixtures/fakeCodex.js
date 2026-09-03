@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const process = require("process");
 
 const argumentsList = process.argv.slice(2);
@@ -19,13 +21,15 @@ if (argumentsList[0] === "--version") {
         const promptLeakedToArguments = argumentsList.some(function (argument) {
             return argument.includes("readiness response") ||
                 argument.includes("functional requirement") ||
-                argument.includes("approved task");
+                argument.includes("approved task") ||
+                argument.includes("disposable Git workspace");
         });
 
         const isRequirementReview = input.includes("Review one functional requirement");
         const isTaskExecutionProposal = input.includes("Propose an implementation approach for one approved task");
+        const isTaskExecution = input.includes("Implement one approved task in the current disposable Git workspace");
 
-        if (promptLeakedToArguments || (isRequirementReview && process.env.OPENAI_API_KEY)) {
+        if (promptLeakedToArguments || ((isRequirementReview || isTaskExecution) && process.env.OPENAI_API_KEY)) {
             process.exitCode = 2;
             return;
         }
@@ -71,6 +75,32 @@ if (argumentsList[0] === "--version") {
                 risks: ["Exported evidence may expose fields outside the normalized contract."],
                 summary: "Implement a normalized evidence export behind the existing service boundary.",
                 validationSteps: ["Run the deterministic unit and architecture test suites."]
+            };
+        } else if (
+            isTaskExecution &&
+            input.includes('"approvedChain"') &&
+            input.includes('"proposal"') &&
+            argumentsList.includes("--ephemeral") &&
+            argumentsList.includes("--ignore-user-config") &&
+            argumentsList.includes("--ignore-rules") &&
+            argumentsList[argumentsList.indexOf("--sandbox") + 1] === "workspace-write" &&
+            argumentsList[argumentsList.indexOf("--ask-for-approval") + 1] === "never" &&
+            argumentsList.some(function (argument) {
+                return argument.endsWith("codexTaskExecutionOutput.schema.json");
+            }) &&
+            process.cwd().includes("slop-stop-execution-") &&
+            fs.existsSync(path.resolve(process.cwd(), ".git")) &&
+            !fs.readFileSync(path.resolve(process.cwd(), ".git", "config"), "utf8").includes("url =") &&
+            !process.env.OPENAI_API_KEY
+        ) {
+            fs.writeFileSync(
+                path.resolve(process.cwd(), "m5bCandidate.txt"),
+                "Generated only inside the disposable workspace.\n",
+                "utf8"
+            );
+            output = {
+                summary: "Created one isolated implementation candidate.",
+                validationNotes: ["No independent verification was performed."]
             };
         } else {
             process.exitCode = 2;

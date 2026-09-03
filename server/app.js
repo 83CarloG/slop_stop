@@ -13,6 +13,7 @@ const getOpenApiConfig = require(path.resolve(process.cwd(), "config", "openapi.
 
 const createFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "createFunctionalRequirement.js"));
 const createTask = require(path.resolve(process.cwd(), "src", "services", "createTask.js"));
+const createTaskExecutionCandidate = require(path.resolve(process.cwd(), "src", "services", "createTaskExecutionCandidate.js"));
 const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "createTechnicalRequirement.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
 const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
@@ -22,6 +23,7 @@ const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "g
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
 const getHealth = require(path.resolve(process.cwd(), "src", "services", "getHealth.js"));
 const getTask = require(path.resolve(process.cwd(), "src", "services", "getTask.js"));
+const getTaskExecutionPatch = require(path.resolve(process.cwd(), "src", "services", "getTaskExecutionPatch.js"));
 const getTaskTrace = require(path.resolve(process.cwd(), "src", "services", "getTaskTrace.js"));
 const getTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "getTechnicalRequirement.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
@@ -65,6 +67,14 @@ const taskIdSchema = {
     required: ["taskId"],
     type: "object"
 };
+const taskExecutionIdSchema = {
+    properties: {
+        executionId: {format: "uuid", type: "string"},
+        taskId: {format: "uuid", type: "string"}
+    },
+    required: ["executionId", "taskId"],
+    type: "object"
+};
 
 function mapErrorStatus(error) {
     const statusByCode = {
@@ -76,6 +86,7 @@ function mapErrorStatus(error) {
         CODEX_PROTOCOL_ERROR: 502,
         CODEX_TIMEOUT: 504,
         CONFIRMATION_REQUIRED: 400,
+        EXECUTION_NOT_FOUND: 404,
         FUNCTIONAL_REQUIREMENT_NOT_APPROVED: 409,
         FUNCTIONAL_REQUIREMENT_NOT_FOUND: 404,
         INVALID_REQUEST: 400,
@@ -84,10 +95,18 @@ function mapErrorStatus(error) {
         INVALID_TRANSITION: 409,
         REQUIREMENT_NOT_FOUND: 404,
         STORE_CORRUPTED: 500,
+        PATCH_CORRUPTED: 500,
+        PATCH_NOT_FOUND: 404,
         TASK_NOT_FOUND: 404,
+        TASK_EXECUTION_NOT_READY: 409,
         TASK_NOT_READY: 409,
         TECHNICAL_REQUIREMENT_NOT_APPROVED: 409,
-        TECHNICAL_REQUIREMENT_NOT_FOUND: 404
+        TECHNICAL_REQUIREMENT_NOT_FOUND: 404,
+        WORKSPACE_EMPTY_RESULT: 422,
+        WORKSPACE_GIT_ERROR: 502,
+        WORKSPACE_OUTPUT_LIMIT: 502,
+        WORKSPACE_SOURCE_INVALID: 500,
+        WORKSPACE_UNSAFE_RESULT: 502
     };
 
     return statusByCode[error.code] || 500;
@@ -595,6 +614,50 @@ module.exports = function createApp() {
         });
     });
 
+    app.post("/api/tasks/:taskId/executions", {
+        schema: {
+            operationId: "createTaskExecutionCandidate",
+            summary: "Create an isolated implementation candidate from the latest task proposal",
+            tags: ["Tasks", "Codex"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    actorName: actorNameSchema,
+                    confirmed: {const: true},
+                    note: noteSchema
+                },
+                required: ["actorName", "confirmed", "note"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await createTaskExecutionCandidate({
+            ...request.body,
+            signal: request.raw.signal,
+            taskId: request.params.taskId
+        });
+    });
+
+    app.get("/api/tasks/:taskId/executions/:executionId/patch", {
+        schema: {
+            operationId: "getTaskExecutionPatch",
+            summary: "Read an integrity-checked implementation candidate patch",
+            tags: ["Tasks"],
+            params: taskExecutionIdSchema,
+            response: {
+                200: {type: "string"}
+            }
+        }
+    }, async function (request, reply) {
+        const result = await getTaskExecutionPatch(request.params);
+
+        return await reply
+            .header("etag", `\"${result.patchSha256}\"`)
+            .type("text/x-diff; charset=utf-8")
+            .send(result.content);
+    });
+
     app.post("/api/providers/codex/smoke", {
         schema: {
             operationId: "runCodexSmoke",
@@ -628,6 +691,7 @@ module.exports = function createApp() {
             CODEX_PROTOCOL_ERROR: "Codex returned an invalid response.",
             CODEX_TIMEOUT: "Codex execution timed out.",
             CONFIRMATION_REQUIRED: "Explicit confirmation is required.",
+            EXECUTION_NOT_FOUND: "The task execution candidate was not found.",
             FUNCTIONAL_REQUIREMENT_NOT_APPROVED: "The originating functional requirement is not approved.",
             FUNCTIONAL_REQUIREMENT_NOT_FOUND: "The originating functional requirement was not found.",
             INTERNAL_ERROR: "An internal error occurred.",
@@ -636,10 +700,18 @@ module.exports = function createApp() {
             INVALID_TECHNICAL_TRANSITION: "The technical requirement transition is not allowed.",
             INVALID_TRANSITION: "The functional requirement transition is not allowed.",
             REQUIREMENT_NOT_FOUND: "The functional requirement was not found.",
+            PATCH_CORRUPTED: "The patch artifact failed its integrity check.",
+            PATCH_NOT_FOUND: "The patch artifact was not found.",
             STORE_CORRUPTED: "The local event store is corrupted.",
+            TASK_EXECUTION_NOT_READY: "The task is not ready for isolated execution.",
             TASK_NOT_FOUND: "The task was not found.",
             TECHNICAL_REQUIREMENT_NOT_APPROVED: "The originating technical requirement is not approved.",
-            TECHNICAL_REQUIREMENT_NOT_FOUND: "The technical requirement was not found."
+            TECHNICAL_REQUIREMENT_NOT_FOUND: "The technical requirement was not found.",
+            WORKSPACE_EMPTY_RESULT: "Codex did not produce a candidate change.",
+            WORKSPACE_GIT_ERROR: "The isolated Git workspace operation failed.",
+            WORKSPACE_OUTPUT_LIMIT: "The isolated candidate exceeded the allowed size.",
+            WORKSPACE_SOURCE_INVALID: "The application root is not a valid execution source.",
+            WORKSPACE_UNSAFE_RESULT: "The isolated candidate contains unsafe changes."
         };
 
         return reply.code(statusCode).send({
