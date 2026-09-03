@@ -9,6 +9,7 @@ const labels = {
     task_created: "Task draft created",
     task_check_evaluated: "Task readiness check evaluated",
     task_decided: "Task decision recorded",
+    task_execution_proposed: "Codex execution proposal recorded",
     task_revised: "Task revision created",
     task_review_submitted: "Task submitted for review",
     technical_requirement_created: "Technical draft created",

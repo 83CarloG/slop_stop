@@ -64,6 +64,57 @@ function readinessCheckIsValid(event, task) {
         payload.consequence === expectedConsequence;
 }
 
+function stringArrayIsValid(value, maximumItems, maximumLength) {
+    return Array.isArray(value) &&
+        value.length <= maximumItems &&
+        value.every(function (item) {
+            return typeof item === "string" && item.trim().length > 0 && item.length <= maximumLength;
+        });
+}
+
+function executionProposalIsValid(event, task) {
+    const proposal = event.payload.proposal;
+    const latestCheck = task.checks.at(-1);
+    const changesAreValid = proposal &&
+        Array.isArray(proposal.proposedChanges) &&
+        proposal.proposedChanges.length >= 1 &&
+        proposal.proposedChanges.length <= 20 &&
+        proposal.proposedChanges.every(function (change) {
+            return change &&
+                Object.keys(change).sort().join(",") === "description,path" &&
+                typeof change.path === "string" &&
+                /^[A-Za-z0-9._/-]+$/u.test(change.path) &&
+                !change.path.startsWith("/") &&
+                change.path.split("/").every(function (segment) {
+                    return segment !== "" && segment !== "." && segment !== "..";
+                }) &&
+                typeof change.description === "string" &&
+                change.description.trim().length > 0 &&
+                change.description.length <= 1000;
+        });
+
+    return event.actor.kind === "ai" &&
+        event.actor.name === "Codex" &&
+        Object.keys(event.payload).sort().join(",") === "proposal,taskId,version" &&
+        event.payload.taskId === task.id &&
+        event.payload.version === task.currentVersion &&
+        task.status === "approved" &&
+        task.approvedVersion === task.currentVersion &&
+        latestCheck &&
+        latestCheck.version === task.currentVersion &&
+        latestCheck.status === "passed" &&
+        latestCheck.consequence === "allow" &&
+        proposal &&
+        Object.keys(proposal).sort().join(",") === "proposedChanges,risks,summary,validationSteps" &&
+        typeof proposal.summary === "string" &&
+        proposal.summary.trim().length > 0 &&
+        proposal.summary.length <= 1000 &&
+        changesAreValid &&
+        stringArrayIsValid(proposal.validationSteps, 10, 500) &&
+        proposal.validationSteps.length >= 1 &&
+        stringArrayIsValid(proposal.risks, 10, 500);
+}
+
 module.exports = function buildTaskViews(events) {
     const views = new Map();
 
@@ -93,6 +144,7 @@ module.exports = function buildTaskViews(events) {
                 createdAt: event.occurredAt,
                 currentVersion: 1,
                 decision: null,
+                executionProposals: [],
                 id: taskId,
                 status: "draft",
                 technicalRequirementId: event.requirementId,
@@ -169,6 +221,18 @@ module.exports = function buildTaskViews(events) {
                     return {...rule};
                 }),
                 status: event.payload.status,
+                version: event.payload.version
+            });
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_execution_proposed") {
+            if (!executionProposalIsValid(event, existing)) {
+                throw createCorruptionError();
+            }
+
+            existing.executionProposals.push({
+                actor: event.actor,
+                createdAt: event.occurredAt,
+                proposal: event.payload.proposal,
                 version: event.payload.version
             });
             existing.updatedAt = event.occurredAt;

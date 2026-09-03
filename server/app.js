@@ -28,6 +28,7 @@ const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "s
 const listTasks = require(path.resolve(process.cwd(), "src", "services", "listTasks.js"));
 const listTechnicalRequirements = require(path.resolve(process.cwd(), "src", "services", "listTechnicalRequirements.js"));
 const proposeFunctionalRequirementAiReview = require(path.resolve(process.cwd(), "src", "services", "proposeFunctionalRequirementAiReview.js"));
+const proposeTaskExecution = require(path.resolve(process.cwd(), "src", "services", "proposeTaskExecution.js"));
 const reviseFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseFunctionalRequirement.js"));
 const reviseTask = require(path.resolve(process.cwd(), "src", "services", "reviseTask.js"));
 const reviseTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseTechnicalRequirement.js"));
@@ -84,6 +85,7 @@ function mapErrorStatus(error) {
         REQUIREMENT_NOT_FOUND: 404,
         STORE_CORRUPTED: 500,
         TASK_NOT_FOUND: 404,
+        TASK_NOT_READY: 409,
         TECHNICAL_REQUIREMENT_NOT_APPROVED: 409,
         TECHNICAL_REQUIREMENT_NOT_FOUND: 404
     };
@@ -568,6 +570,29 @@ module.exports = function createApp() {
         }
     }, async function (request) {
         return await evaluateTaskReadiness({taskId: request.params.taskId});
+    });
+
+    app.post("/api/tasks/:taskId/execution-proposals", {
+        schema: {
+            operationId: "proposeTaskExecution",
+            summary: "Request a read-only Codex execution proposal for a ready task",
+            tags: ["Tasks", "Codex"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    confirmed: {const: true}
+                },
+                required: ["confirmed"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await proposeTaskExecution({
+            confirmed: request.body.confirmed,
+            signal: request.raw.signal,
+            taskId: request.params.taskId
+        });
     });
 
     app.post("/api/providers/codex/smoke", {
