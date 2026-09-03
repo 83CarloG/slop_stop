@@ -229,6 +229,9 @@ test("the approved-chain check stops a draft and allows its approved version", a
         assert.equal(stopped.checks[0].rules[2].status, "passed");
 
         await submitTaskReview({actorName: "Reviewer", taskId: task.id});
+        const intervention = await evaluateTaskReadiness({taskId: task.id});
+        assert.equal(intervention.checks.at(-1).status, "failed");
+        assert.equal(intervention.checks.at(-1).consequence, "human_intervention");
         await decideTask({
             actorName: "Reviewer",
             decision: "approved",
@@ -250,7 +253,7 @@ test("the approved-chain check stops a draft and allows its approved version", a
         const events = fs.readFileSync(storePath, "utf8").trim().split("\n").map(JSON.parse);
         assert.equal(events.filter(function (event) {
             return event.eventType === "task_check_evaluated";
-        }).length, 2);
+        }).length, 3);
     });
 });
 
@@ -310,6 +313,8 @@ test("a rejected task returns to draft only through a new revision", async funct
 
         assert.equal(rejected.status, "rejected");
         assert.equal(rejected.approvedVersion, null);
+        const stopped = await evaluateTaskReadiness({taskId: task.id});
+        assert.equal(stopped.checks.at(-1).consequence, "stop");
         await assert.rejects(submitTaskReview({actorName: "Reviewer", taskId: task.id}), assertCode("INVALID_TASK_TRANSITION"));
 
         const revised = await reviseTask({

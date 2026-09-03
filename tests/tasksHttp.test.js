@@ -151,6 +151,14 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(review.statusCode, 200);
             assert.equal(review.json().status, "in_review");
 
+            const interventionCheck = await app.inject({
+                method: "POST",
+                payload: {},
+                url: `/api/tasks/${taskId}/checks`
+            });
+            assert.equal(interventionCheck.statusCode, 200);
+            assert.equal(interventionCheck.json().checks.at(-1).consequence, "human_intervention");
+
             const invalidDecision = await app.inject({
                 method: "POST",
                 payload: {actorName: "Reviewer", decision: "ready", note: "Invalid decision."},
@@ -203,7 +211,7 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(persistedTask.json().status, "approved");
             assert.equal(persistedTask.json().approvedVersion, 2);
             assert.equal(persistedTask.json().decision.actor.name, "Reviewer");
-            assert.equal(persistedTask.json().checks.length, 2);
+            assert.equal(persistedTask.json().checks.length, 3);
             assert.equal(persistedTechnical.json().functionalRequirementId, functionalRequirementId);
 
             const trace = await app.inject({method: "GET", url: `/api/tasks/${taskId}/trace`});
@@ -224,6 +232,7 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
                 "task_revised",
                 "task_check_evaluated",
                 "task_review_submitted",
+                "task_check_evaluated",
                 "task_decided",
                 "task_check_evaluated"
             ]);

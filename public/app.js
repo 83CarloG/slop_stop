@@ -196,7 +196,7 @@ function createTimelineText(event) {
         technical_requirement_review_submitted: "Technical requirement submitted for review",
         ai_review_proposed: "Codex review proposed"
     };
-    const result = event.result ? ` — ${event.result.status} · ${event.result.consequence}` : "";
+    const result = event.result ? ` — ${event.result.status} · ${event.result.consequence.replace(/_/gu, " ")}` : "";
     const note = event.note ? ` — ${event.note}` : "";
     return `${event.label || labels[event.eventType] || event.eventType} by ${event.actor.name} at ${event.occurredAt}${result}${note}`;
 }
@@ -608,7 +608,8 @@ function renderTask(task) {
     const latestCheck = task.checks.at(-1);
 
     if (latestCheck) {
-        taskReadinessSummary.textContent = `${latestCheck.checkId}: ${latestCheck.status.toUpperCase()} · ${latestCheck.consequence.toUpperCase()} — version ${latestCheck.version} at ${latestCheck.checkedAt}`;
+        const consequence = latestCheck.consequence.replace(/_/gu, " ").toUpperCase();
+        taskReadinessSummary.textContent = `${latestCheck.checkId}: ${latestCheck.status.toUpperCase()} · ${consequence} — version ${latestCheck.version} at ${latestCheck.checkedAt}`;
 
         for (const rule of latestCheck.rules) {
             const item = document.createElement("li");

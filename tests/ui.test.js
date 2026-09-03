@@ -49,6 +49,7 @@ test("the hierarchy is shared and the process panel remains read-only", function
     assert.match(html, /id="run-task-readiness-check"/u);
     assert.match(html, /id="task-readiness-summary"/u);
     assert.equal(client.includes("task_check_evaluated"), true);
+    assert.match(client, /consequence\.replace\(\/_\/gu, " "\)/u);
     assert.equal(client.includes("functionalRequirementId === functionalRequirement.id"), true);
     assert.equal(client.includes("task.technicalRequirementId === technicalRequirement.id"), true);
 });

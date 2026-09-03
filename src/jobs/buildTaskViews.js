@@ -47,6 +47,8 @@ function readinessCheckIsValid(event, task) {
     }) ? "passed" : "failed";
     const expectedTaskRuleStatus = task.status === "approved" &&
         task.approvedVersion === task.currentVersion ? "passed" : "failed";
+    const expectedConsequence = derivedStatus === "passed" ? "allow" :
+        (task.status === "in_review" ? "human_intervention" : "stop");
 
     return event.actor.kind === "system" &&
         event.actor.name === "readiness-check" &&
@@ -59,7 +61,7 @@ function readinessCheckIsValid(event, task) {
         payload.rules[1].status === "passed" &&
         payload.rules[2].status === "passed" &&
         payload.status === derivedStatus &&
-        payload.consequence === (derivedStatus === "passed" ? "allow" : "stop");
+        payload.consequence === expectedConsequence;
 }
 
 module.exports = function buildTaskViews(events) {

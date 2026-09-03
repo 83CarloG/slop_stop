@@ -18,10 +18,12 @@ module.exports = function evaluateTaskReadiness(input) {
     const status = rules.every(function (rule) {
         return rule.status === "passed";
     }) ? "passed" : "failed";
+    const consequence = status === "passed" ? "allow" :
+        (input.task.status === "in_review" ? "human_intervention" : "stop");
 
     return {
         checkId: "approved_chain",
-        consequence: status === "passed" ? "allow" : "stop",
+        consequence,
         rules,
         status,
         taskId: input.task.id,
