@@ -10,6 +10,7 @@ const test = require("node:test");
 const createFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "createFunctionalRequirement.js"));
 const createTask = require(path.resolve(process.cwd(), "src", "services", "createTask.js"));
 const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "createTechnicalRequirement.js"));
+const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
 const listFunctionalRequirements = require(path.resolve(process.cwd(), "src", "services", "listFunctionalRequirements.js"));
@@ -17,6 +18,7 @@ const listTasks = require(path.resolve(process.cwd(), "src", "services", "listTa
 const listTechnicalRequirements = require(path.resolve(process.cwd(), "src", "services", "listTechnicalRequirements.js"));
 const reviseTask = require(path.resolve(process.cwd(), "src", "services", "reviseTask.js"));
 const submitFunctionalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitFunctionalRequirementReview.js"));
+const submitTaskReview = require(path.resolve(process.cwd(), "src", "services", "submitTaskReview.js"));
 const submitTechnicalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitTechnicalRequirementReview.js"));
 
 async function withEventStore(callback) {
@@ -156,6 +158,94 @@ test("task revisions preserve origin, versions, actor, and criteria", async func
     });
 });
 
+test("task review and approval preserve an immutable human decision", async function () {
+    await withEventStore(async function (storePath) {
+        const {technicalRequirement} = await createApprovedTechnicalRequirement();
+        const task = await createTask({
+            acceptanceCriteria: ["A human reviewer approves the task before gating."],
+            actorName: "Author",
+            objective: "Establish an approved input for deterministic gates.",
+            technicalRequirementId: technicalRequirement.id,
+            title: "Approve gate input"
+        });
+        const inReview = await submitTaskReview({actorName: "Reviewer", taskId: task.id});
+        const approved = await decideTask({
+            actorName: "Reviewer",
+            decision: "approved",
+            note: "The task is bounded and verifiable.",
+            taskId: task.id
+        });
+
+        assert.equal(inReview.status, "in_review");
+        assert.equal(approved.status, "approved");
+        assert.equal(approved.approvedVersion, 1);
+        assert.equal(approved.decision.actor.name, "Reviewer");
+        assert.equal(approved.decision.note, "The task is bounded and verifiable.");
+        assert.deepEqual(approved.timeline.slice(-2).map(function (event) {
+            return event.eventType;
+        }), ["task_review_submitted", "task_decided"]);
+
+        await assert.rejects(reviseTask({
+            acceptanceCriteria: ["Approved tasks cannot be revised."],
+            actorName: "Author",
+            note: "This must fail.",
+            objective: "Attempt to change approved work.",
+            taskId: task.id,
+            title: "Change approved task"
+        }), assertCode("INVALID_TASK_TRANSITION"));
+        await assert.rejects(decideTask({
+            actorName: "Reviewer",
+            decision: "approved",
+            note: "Duplicate decision.",
+            taskId: task.id
+        }), assertCode("INVALID_TASK_TRANSITION"));
+
+        const events = fs.readFileSync(storePath, "utf8").trim().split("\n").map(JSON.parse);
+        assert.deepEqual(events.slice(-2).map(function (event) {
+            return event.eventType;
+        }), ["task_review_submitted", "task_decided"]);
+        assert.equal(events.at(-1).payload.taskId, task.id);
+    });
+});
+
+test("a rejected task returns to draft only through a new revision", async function () {
+    await withEventStore(async function () {
+        const {technicalRequirement} = await createApprovedTechnicalRequirement();
+        const task = await createTask({
+            acceptanceCriteria: ["The initial criterion is reviewed."],
+            actorName: "Author",
+            objective: "Create a task that requires clarification.",
+            technicalRequirementId: technicalRequirement.id,
+            title: "Clarify gate input"
+        });
+        await submitTaskReview({actorName: "Reviewer", taskId: task.id});
+        const rejected = await decideTask({
+            actorName: "Reviewer",
+            decision: "rejected",
+            note: "The criterion is not sufficiently precise.",
+            taskId: task.id
+        });
+
+        assert.equal(rejected.status, "rejected");
+        assert.equal(rejected.approvedVersion, null);
+        await assert.rejects(submitTaskReview({actorName: "Reviewer", taskId: task.id}), assertCode("INVALID_TASK_TRANSITION"));
+
+        const revised = await reviseTask({
+            acceptanceCriteria: ["The deterministic result is explicitly observable."],
+            actorName: "Author",
+            note: "Made the expected result precise.",
+            objective: "Create a task with a deterministic acceptance result.",
+            taskId: task.id,
+            title: "Clarify deterministic gate input"
+        });
+
+        assert.equal(revised.status, "draft");
+        assert.equal(revised.currentVersion, 2);
+        assert.equal(revised.decision, null);
+        assert.equal(revised.versions.length, 2);
+    });
+});
+
 test("task creation requires an approved technical origin and valid criteria", async function () {
     await withEventStore(async function () {
         const functionalRequirement = await createApprovedFunctionalRequirement();
@@ -214,4 +304,3 @@ test("an inconsistent task event history is rejected", async function () {
         await assert.rejects(listTasks(), assertCode("STORE_CORRUPTED"));
     });
 });
-

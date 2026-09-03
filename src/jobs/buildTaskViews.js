@@ -51,8 +51,10 @@ module.exports = function buildTaskViews(events) {
             }
 
             views.set(taskId, {
+                approvedVersion: null,
                 createdAt: event.occurredAt,
                 currentVersion: 1,
+                decision: null,
                 id: taskId,
                 status: "draft",
                 technicalRequirementId: event.requirementId,
@@ -71,20 +73,50 @@ module.exports = function buildTaskViews(events) {
             continue;
         }
 
-        if (
-            !existing ||
-            event.requirementId !== existing.technicalRequirementId ||
-            event.payload.version !== existing.currentVersion + 1 ||
-            !acceptanceCriteriaAreValid(event.payload.acceptanceCriteria)
-        ) {
+        if (!existing || event.requirementId !== existing.technicalRequirementId) {
             throw createCorruptionError();
         }
 
         if (event.eventType === "task_revised") {
+            if (
+                (existing.status !== "draft" && existing.status !== "rejected") ||
+                event.payload.version !== existing.currentVersion + 1 ||
+                !acceptanceCriteriaAreValid(event.payload.acceptanceCriteria)
+            ) {
+                throw createCorruptionError();
+            }
+
             existing.currentVersion = event.payload.version;
+            existing.decision = null;
+            existing.status = "draft";
             existing.title = event.payload.title;
             existing.updatedAt = event.occurredAt;
             existing.versions.push(createVersion(event));
+        } else if (event.eventType === "task_review_submitted") {
+            if (existing.status !== "draft" || event.payload.version !== existing.currentVersion) {
+                throw createCorruptionError();
+            }
+
+            existing.status = "in_review";
+            existing.updatedAt = event.occurredAt;
+        } else if (event.eventType === "task_decided") {
+            if (
+                existing.status !== "in_review" ||
+                event.payload.version !== existing.currentVersion ||
+                (event.payload.decision !== "approved" && event.payload.decision !== "rejected")
+            ) {
+                throw createCorruptionError();
+            }
+
+            existing.status = event.payload.decision;
+            existing.approvedVersion = event.payload.decision === "approved" ? existing.currentVersion : existing.approvedVersion;
+            existing.decision = {
+                actor: event.actor,
+                decidedAt: event.occurredAt,
+                note: event.payload.note,
+                value: event.payload.decision
+            };
+            existing.updatedAt = event.occurredAt;
         } else {
             throw createCorruptionError();
         }
@@ -102,4 +134,3 @@ module.exports = function buildTaskViews(events) {
         return right.updatedAt.localeCompare(left.updatedAt);
     });
 };
-
