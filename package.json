@@ -14,8 +14,13 @@
     "smoke:codex-review": "node --env-file-if-exists=.env scripts/smokeCodexReview.js",
     "start": "node --env-file-if-exists=.env --watch server/start.js",
     "start:once": "node --env-file-if-exists=.env server/start.js",
+    "start:test": "node --env-file-if-exists=.env --watch scripts/startTest.js",
+    "start:test:once": "node --env-file-if-exists=.env scripts/startTest.js",
     "test": "node --test \"tests/**/*.test.js\"",
-    "test:architecture": "node --test tests/architecture.test.js"
+    "test:architecture": "node --test tests/architecture.test.js",
+    "test-data:clean": "node scripts/manageTestData.js clean",
+    "test-data:reset": "node scripts/manageTestData.js reset",
+    "test-data:seed": "node scripts/manageTestData.js seed"
   },
   "dependencies": {
     "@fastify/static": "10.1.3",

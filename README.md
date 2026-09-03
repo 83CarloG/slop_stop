@@ -22,6 +22,19 @@ Open `http://127.0.0.1:3000`.
 
 `npm start` watches application and configuration dependencies and automatically restarts the local server after changes. Use `npm run start:once` when a single non-watching process is required.
 
+## Isolated test project
+
+Create a clean functional → technical → task chain for manual testing:
+
+```sh
+npm run test-data:reset
+npm run start:test
+```
+
+Open `http://127.0.0.1:3001`. The seeded task is approved and its latest readiness result is `allow`, so it is ready for the explicitly confirmed Codex execution proposal.
+
+The test launcher pins `.data/test/events.jsonl` even if the shell or `.env` defines another store. `test-data:clean` deletes only the test file; it never touches the default `.data/events.jsonl`. Stop the test server before cleaning or resetting its data.
+
 ## API contract
 
 OpenAPI 3.0.3 is generated from the same route schemas used for request validation:
