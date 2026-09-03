@@ -30,6 +30,10 @@ OpenAPI 3.0.3 is generated from the same route schemas used for request validati
 
 Every documented operation has a stable `operationId`. Every response includes an `X-Request-Id` UUID for local request tracing.
 
+## Workspace
+
+The UI uses four focused work areas: Functional, Technical, Tasks, and read-only Process. A shared document hierarchy keeps every `functional → technical → task` relationship visible while each mutable record type retains only its own actions.
+
 ## Functional requirements
 
 The web UI supports draft creation, immutable revisions, review submission, and an explicit human approval or rejection. Evidence is appended to `.data/events.jsonl`.

@@ -372,8 +372,10 @@ function createTreeNode(documentItem, type, children) {
         toggle.setAttribute("aria-expanded", String(isExpanded));
         toggle.setAttribute("aria-label", `${isExpanded ? "Collapse" : "Expand"} children of ${documentItem.title}`);
         toggle.textContent = isExpanded ? "▾" : "▸";
+        childList.id = `tree-children-${type}-${documentItem.id}`;
         childList.className = "tree-children";
         childList.hidden = !isExpanded;
+        toggle.setAttribute("aria-controls", childList.id);
 
         for (const child of children) {
             childList.append(child);
@@ -412,6 +414,7 @@ function createTreeNode(documentItem, type, children) {
     button.dataset.documentId = documentItem.id;
     button.dataset.documentType = type;
     button.setAttribute("aria-current", isCurrent ? "page" : "false");
+    button.setAttribute("aria-label", `${type} document ${documentItem.title}, ${documentItem.status}, version ${documentItem.currentVersion}`);
     title.className = "tree-document-title";
     title.textContent = documentItem.title;
     metadata.className = `tree-document-meta status-${documentItem.status}`;
