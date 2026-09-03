@@ -14,6 +14,7 @@ const expectedOperations = [
     "decideFunctionalRequirement",
     "decideTask",
     "decideTechnicalRequirement",
+    "evaluateTaskReadiness",
     "getCodexStatus",
     "getFunctionalRequirement",
     "getHealth",
@@ -72,6 +73,7 @@ test("the generated OpenAPI contract documents every API operation", async funct
         assert.ok(contract.paths["/api/tasks/{taskId}/revisions"]);
         assert.ok(contract.paths["/api/tasks/{taskId}/review"]);
         assert.ok(contract.paths["/api/tasks/{taskId}/decisions"]);
+        assert.ok(contract.paths["/api/tasks/{taskId}/checks"]);
         assert.ok(contract.paths["/api/tasks/{taskId}/trace"]);
     } finally {
         await app.close();

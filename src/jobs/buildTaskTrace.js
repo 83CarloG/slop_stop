@@ -7,6 +7,7 @@ const labels = {
     functional_requirement_revised: "Functional revision created",
     functional_requirement_review_submitted: "Functional requirement submitted for review",
     task_created: "Task draft created",
+    task_check_evaluated: "Task readiness check evaluated",
     task_decided: "Task decision recorded",
     task_revised: "Task revision created",
     task_review_submitted: "Task submitted for review",
@@ -111,7 +112,7 @@ module.exports = function buildTaskTrace(input) {
             throw createCorruptionError();
         }
 
-        return {
+        const timelineEvent = {
             actor: {
                 kind: event.actor.kind,
                 name: event.actor.name
@@ -127,6 +128,16 @@ module.exports = function buildTaskTrace(input) {
                 version: event.payload.version
             }
         };
+
+        if (event.eventType === "task_check_evaluated") {
+            timelineEvent.result = {
+                checkId: event.payload.checkId,
+                consequence: event.payload.consequence,
+                status: event.payload.status
+            };
+        }
+
+        return timelineEvent;
     });
 
     return {

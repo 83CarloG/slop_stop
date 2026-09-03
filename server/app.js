@@ -17,6 +17,7 @@ const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "s
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
 const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
+const evaluateTaskReadiness = require(path.resolve(process.cwd(), "src", "services", "evaluateTaskReadiness.js"));
 const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "getCodexStatus.js"));
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
 const getHealth = require(path.resolve(process.cwd(), "src", "services", "getHealth.js"));
@@ -551,6 +552,22 @@ module.exports = function createApp() {
             ...request.body,
             taskId: request.params.taskId
         });
+    });
+
+    app.post("/api/tasks/:taskId/checks", {
+        schema: {
+            operationId: "evaluateTaskReadiness",
+            summary: "Evaluate the approved task derivation chain",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {},
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await evaluateTaskReadiness({taskId: request.params.taskId});
     });
 
     app.post("/api/providers/codex/smoke", {

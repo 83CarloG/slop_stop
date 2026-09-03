@@ -135,6 +135,14 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(revision.statusCode, 201);
             assert.equal(revision.json().currentVersion, 2);
 
+            const stoppedCheck = await app.inject({
+                method: "POST",
+                payload: {},
+                url: `/api/tasks/${taskId}/checks`
+            });
+            assert.equal(stoppedCheck.statusCode, 200);
+            assert.equal(stoppedCheck.json().checks.at(-1).consequence, "stop");
+
             const review = await app.inject({
                 method: "POST",
                 payload: {actorName: "Reviewer"},
@@ -159,6 +167,14 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(decision.statusCode, 200);
             assert.equal(decision.json().status, "approved");
             assert.equal(decision.json().approvedVersion, 2);
+
+            const allowedCheck = await app.inject({
+                method: "POST",
+                payload: {},
+                url: `/api/tasks/${taskId}/checks`
+            });
+            assert.equal(allowedCheck.statusCode, 200);
+            assert.equal(allowedCheck.json().checks.at(-1).consequence, "allow");
 
             const duplicateDecision = await app.inject({
                 method: "POST",
@@ -187,6 +203,7 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(persistedTask.json().status, "approved");
             assert.equal(persistedTask.json().approvedVersion, 2);
             assert.equal(persistedTask.json().decision.actor.name, "Reviewer");
+            assert.equal(persistedTask.json().checks.length, 2);
             assert.equal(persistedTechnical.json().functionalRequirementId, functionalRequirementId);
 
             const trace = await app.inject({method: "GET", url: `/api/tasks/${taskId}/trace`});
@@ -205,9 +222,16 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
                 "technical_requirement_decided",
                 "task_created",
                 "task_revised",
+                "task_check_evaluated",
                 "task_review_submitted",
-                "task_decided"
+                "task_decided",
+                "task_check_evaluated"
             ]);
+            assert.deepEqual(trace.json().timeline.at(-1).result, {
+                checkId: "approved_chain",
+                consequence: "allow",
+                status: "passed"
+            });
 
             const missing = await app.inject({method: "GET", url: `/api/tasks/${crypto.randomUUID()}`});
             assert.equal(missing.statusCode, 404);

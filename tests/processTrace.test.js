@@ -12,6 +12,7 @@ const createTask = require(path.resolve(process.cwd(), "src", "services", "creat
 const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "createTechnicalRequirement.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
+const evaluateTaskReadiness = require(path.resolve(process.cwd(), "src", "services", "evaluateTaskReadiness.js"));
 const getTaskTrace = require(path.resolve(process.cwd(), "src", "services", "getTaskTrace.js"));
 const reviseTask = require(path.resolve(process.cwd(), "src", "services", "reviseTask.js"));
 const submitFunctionalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitFunctionalRequirementReview.js"));
@@ -117,6 +118,15 @@ test("a task trace normalizes its complete chain and chronological evidence", as
         assert.equal(serialized.includes("payload"), false);
         assert.equal(serialized.includes("reasoning"), false);
         assert.equal(serialized.includes("prompt"), false);
+
+        await evaluateTaskReadiness({taskId: created.task.id});
+        const checkedTrace = await getTaskTrace({taskId: created.task.id});
+        assert.equal(checkedTrace.timeline.at(-1).eventType, "task_check_evaluated");
+        assert.deepEqual(checkedTrace.timeline.at(-1).result, {
+            checkId: "approved_chain",
+            consequence: "stop",
+            status: "failed"
+        });
     });
 });
 
