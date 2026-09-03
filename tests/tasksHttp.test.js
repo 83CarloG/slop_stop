@@ -134,6 +134,39 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             });
             assert.equal(revision.statusCode, 201);
             assert.equal(revision.json().currentVersion, 2);
+
+            const review = await app.inject({
+                method: "POST",
+                payload: {actorName: "Reviewer"},
+                url: `/api/tasks/${taskId}/review`
+            });
+            assert.equal(review.statusCode, 200);
+            assert.equal(review.json().status, "in_review");
+
+            const invalidDecision = await app.inject({
+                method: "POST",
+                payload: {actorName: "Reviewer", decision: "ready", note: "Invalid decision."},
+                url: `/api/tasks/${taskId}/decisions`
+            });
+            assert.equal(invalidDecision.statusCode, 400);
+            assert.equal(invalidDecision.json().code, "INVALID_REQUEST");
+
+            const decision = await app.inject({
+                method: "POST",
+                payload: {actorName: "Reviewer", decision: "approved", note: "Approved for deterministic gating."},
+                url: `/api/tasks/${taskId}/decisions`
+            });
+            assert.equal(decision.statusCode, 200);
+            assert.equal(decision.json().status, "approved");
+            assert.equal(decision.json().approvedVersion, 2);
+
+            const duplicateDecision = await app.inject({
+                method: "POST",
+                payload: {actorName: "Reviewer", decision: "approved", note: "Duplicate decision."},
+                url: `/api/tasks/${taskId}/decisions`
+            });
+            assert.equal(duplicateDecision.statusCode, 409);
+            assert.equal(duplicateDecision.json().code, "INVALID_TASK_TRANSITION");
         } finally {
             await app.close();
         }
@@ -151,6 +184,9 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
             assert.equal(persistedTask.json().technicalRequirementId, technicalRequirementId);
             assert.equal(persistedTask.json().technicalRequirementVersion, 1);
             assert.equal(persistedTask.json().versions.length, 2);
+            assert.equal(persistedTask.json().status, "approved");
+            assert.equal(persistedTask.json().approvedVersion, 2);
+            assert.equal(persistedTask.json().decision.actor.name, "Reviewer");
             assert.equal(persistedTechnical.json().functionalRequirementId, functionalRequirementId);
 
             const trace = await app.inject({method: "GET", url: `/api/tasks/${taskId}/trace`});
@@ -168,7 +204,9 @@ test("the HTTP contract preserves the complete task derivation chain", async fun
                 "technical_requirement_review_submitted",
                 "technical_requirement_decided",
                 "task_created",
-                "task_revised"
+                "task_revised",
+                "task_review_submitted",
+                "task_decided"
             ]);
 
             const missing = await app.inject({method: "GET", url: `/api/tasks/${crypto.randomUUID()}`});

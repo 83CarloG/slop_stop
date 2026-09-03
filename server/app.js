@@ -15,6 +15,7 @@ const createFunctionalRequirement = require(path.resolve(process.cwd(), "src", "
 const createTask = require(path.resolve(process.cwd(), "src", "services", "createTask.js"));
 const createTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "createTechnicalRequirement.js"));
 const decideFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideFunctionalRequirement.js"));
+const decideTask = require(path.resolve(process.cwd(), "src", "services", "decideTask.js"));
 const decideTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "decideTechnicalRequirement.js"));
 const getCodexStatus = require(path.resolve(process.cwd(), "src", "services", "getCodexStatus.js"));
 const getFunctionalRequirement = require(path.resolve(process.cwd(), "src", "services", "getFunctionalRequirement.js"));
@@ -31,6 +32,7 @@ const reviseTask = require(path.resolve(process.cwd(), "src", "services", "revis
 const reviseTechnicalRequirement = require(path.resolve(process.cwd(), "src", "services", "reviseTechnicalRequirement.js"));
 const runCodexSmoke = require(path.resolve(process.cwd(), "src", "services", "runCodexSmoke.js"));
 const submitFunctionalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitFunctionalRequirementReview.js"));
+const submitTaskReview = require(path.resolve(process.cwd(), "src", "services", "submitTaskReview.js"));
 const submitTechnicalRequirementReview = require(path.resolve(process.cwd(), "src", "services", "submitTechnicalRequirementReview.js"));
 
 const actorNameSchema = {maxLength: 80, minLength: 1, type: "string"};
@@ -503,6 +505,52 @@ module.exports = function createApp() {
     }, async function (request, reply) {
         const task = await reviseTask({...request.body, taskId: request.params.taskId});
         return reply.code(201).send(task);
+    });
+
+    app.post("/api/tasks/:taskId/review", {
+        schema: {
+            operationId: "submitTaskReview",
+            summary: "Submit a task draft for human review",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    actorName: actorNameSchema
+                },
+                required: ["actorName"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await submitTaskReview({
+            actorName: request.body.actorName,
+            taskId: request.params.taskId
+        });
+    });
+
+    app.post("/api/tasks/:taskId/decisions", {
+        schema: {
+            operationId: "decideTask",
+            summary: "Approve or reject a reviewed task",
+            tags: ["Tasks"],
+            body: {
+                additionalProperties: false,
+                properties: {
+                    actorName: actorNameSchema,
+                    decision: {enum: ["approved", "rejected"], type: "string"},
+                    note: noteSchema
+                },
+                required: ["actorName", "decision", "note"],
+                type: "object"
+            },
+            params: taskIdSchema
+        }
+    }, async function (request) {
+        return await decideTask({
+            ...request.body,
+            taskId: request.params.taskId
+        });
     });
 
     app.post("/api/providers/codex/smoke", {
